@@ -1,4 +1,4 @@
-from SetAnubis.core.Pythia.adapters.input.pythia_run_interface import PythiaRunInterface
+from SetAnubis.core.Pythia.adapters.input.PythiaRunInterface import PythiaRunInterface
 import os
 
 if __name__ == "__main__":

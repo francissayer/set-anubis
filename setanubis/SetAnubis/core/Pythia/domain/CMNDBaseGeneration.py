@@ -1,9 +1,9 @@
-from SetAnubis.core.Pythia.domain.cmnd_section import CMNDSection
-from SetAnubis.core.Pythia.domain.cmnd_section_type import CMNDSectionType
-from SetAnubis.core.Pythia.domain.cmnd_format import ParticleFormat, DecayFormat
-from SetAnubis.core.Pythia.domain.hard_production_selection import HardProductionQCDList, HardProductionElectroweakList, AbstractEnumProduction
+from SetAnubis.core.Pythia.domain.CMNDSection import CMNDSection
+from SetAnubis.core.Pythia.domain.CMNDSectionType import CMNDSectionType
+from SetAnubis.core.Pythia.domain.CMNDFormat import ParticleFormat, DecayFormat
+from SetAnubis.core.Pythia.domain.HardProductionSelection import HardProductionQCDList, HardProductionElectroweakList, AbstractEnumProduction
 from SetAnubis.core.Pythia.adapters.YAMLReader import YamlReader
-from SetAnubis.core.Pythia.domain.special_cases import Specials, GeneralParams, GeneralType
+from SetAnubis.core.Pythia.domain.SpecialCases import Specials, GeneralParams, GeneralType
 from SetAnubis.core.ModelCore.adapters.input.SetAnubisInteface import SetAnubisInterface
 from SetAnubis.core.BranchingRatio.adapters.input.DecayInterface import DecayInterface, Unit
 from SetAnubis.core.Common.MultiSet import MultiSet

@@ -1,8 +1,8 @@
 from SetAnubis.core.ModelCore.adapters.input.SetAnubisInteface import SetAnubisInterface
 from SetAnubis.core.BranchingRatio.adapters.input.DecayInterface import DecayInterface
-from SetAnubis.core.Pythia.domain.cmnd_base_generation import CMNDGenerationManager
+from SetAnubis.core.Pythia.domain.CMNDBaseGeneration import CMNDGenerationManager
 from SetAnubis.core.Pythia.infrastructure.enums import AbstractEnumProduction
-from SetAnubis.core.Pythia.domain.special_cases import Specials, GeneralParams, GeneralType
+from SetAnubis.core.Pythia.domain.SpecialCases import Specials, GeneralParams, GeneralType
 
 from pathlib import Path
 from typing import List, Dict, Any

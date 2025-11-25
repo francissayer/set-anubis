@@ -2,7 +2,7 @@ def run_simulation(config_path, param_overrides):
     import yaml
     from SetAnubis.core.ModelCore.adapters.input.SetAnubisInteface import SetAnubisInterface
     from SetAnubis.core.BranchingRatio.adapters.input.DecayInterface import DecayInterface, CalculationDecayStrategy
-    from SetAnubis.core.Pythia.adapters.input.pythia_cmnd_interface import PythiaCMNDInterface
+    from SetAnubis.core.Pythia.adapters.input.PythiaCMNDInterface import PythiaCMNDInterface
     from SetAnubis.core.Pythia.app.CLI.utils.prod_logic import PROD_TO_HARDQCD
     import os
     from pathlib import Path

@@ -1,4 +1,4 @@
-from SetAnubis.core.Pythia.adapters.input.cmnd_scan_manager import CMNDScanManager
+from SetAnubis.core.Pythia.adapters.input.CMNDScanManager import CMNDScanManager
 from SetAnubis.core.Pythia.infrastructure.enums import HardProductionQCDList
 from SetAnubis.core.ModelCore.adapters.input.SetAnubisInteface import SetAnubisInterface
 from SetAnubis.core.BranchingRatio.adapters.input.DecayInterface import DecayInterface

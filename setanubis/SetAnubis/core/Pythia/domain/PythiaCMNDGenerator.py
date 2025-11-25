@@ -1,4 +1,4 @@
-from SetAnubis.core.Pythia.domain.pythia_config import PythiaConfig
+from SetAnubis.core.Pythia.domain.PythiaConfig import PythiaConfig
 
 class PythiaCMNDGenerator:
     

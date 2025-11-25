@@ -1,9 +1,9 @@
-from SetAnubis.core.Pythia.adapters.input.cmnd_scan_manager import CMNDScanManager
+from SetAnubis.core.Pythia.adapters.input.CMNDScanManager import CMNDScanManager
 from SetAnubis.core.Pythia.infrastructure.enums import HardProductionQCDList
 from SetAnubis.core.ModelCore.adapters.input.SetAnubisInteface import SetAnubisInterface
 from SetAnubis.core.BranchingRatio.adapters.input.DecayInterface import DecayInterface
 from SetAnubis.core.BranchingRatio.adapters.input.DecayInterface import CalculationDecayStrategy
-from SetAnubis.core.Pythia.adapters.input.pythia_run_interface import PythiaRunInterface
+from SetAnubis.core.Pythia.adapters.input.PythiaRunInterface import PythiaRunInterface
 import numpy as np
 import os
 
@@ -14,7 +14,7 @@ PY_SCRIPT_PRODUCTION_PATH = os.path.join(CURRENT_DIR, "TestFiles", "production_e
 
 if __name__ == "__main__":
     
-    
+    dry_run = True
     nsa = SetAnubisInterface("Assets/UFO/UFO_HNL")
     
     nsa.set_leaf_param("VmuN1", 0)
@@ -123,22 +123,23 @@ if __name__ == "__main__":
 
     scan.generate_all_cmnds()
 
-    py_interface = PythiaRunInterface(os.path.join(os.path.dirname(__file__), "outputs"), [9900012])
+    if not dry_run:
+        py_interface = PythiaRunInterface(os.path.join(os.path.dirname(__file__), "outputs"), [9900012])
 
-    output_lhe, output_hepmc, output_text = py_interface.ensure_directories(["lhe", "hepmc", "text"])
-    liste_cmnd = os.listdir(os.path.join(os.path.dirname(__file__), "scan_cmnd_files"))
-    liste_cmnd_path = []
-    for x in liste_cmnd:
-        liste_cmnd_path.append(os.path.join(os.path.dirname(__file__), "scan_cmnd_files", x))
-    
-    for pat in liste_cmnd_path:
-            
-        py_interface.process_file(
-            config_file=pat,
-            output_lhe_dir=output_lhe,
-            output_hepmc_dir=output_hepmc,
-            output_text_dir=output_text,
-            num_events=2000,
-            suffix="test",
-            include_time=True
-        )
+        output_lhe, output_hepmc, output_text = py_interface.ensure_directories(["lhe", "hepmc", "text"])
+        liste_cmnd = os.listdir(os.path.join(os.path.dirname(__file__), "scan_cmnd_files"))
+        liste_cmnd_path = []
+        for x in liste_cmnd:
+            liste_cmnd_path.append(os.path.join(os.path.dirname(__file__), "scan_cmnd_files", x))
+        
+        for pat in liste_cmnd_path:
+                
+            py_interface.process_file(
+                config_file=pat,
+                output_lhe_dir=output_lhe,
+                output_hepmc_dir=output_hepmc,
+                output_text_dir=output_text,
+                num_events=2000,
+                suffix="test",
+                include_time=True
+            )

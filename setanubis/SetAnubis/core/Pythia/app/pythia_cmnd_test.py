@@ -1,4 +1,4 @@
-from SetAnubis.core.Pythia.domain.cmnd_base_generation import CMNDGenerationManager
+from SetAnubis.core.Pythia.domain.CMNDBaseGeneration import CMNDGenerationManager
 from SetAnubis.core.ModelCore.adapters.input.SetAnubisInteface import SetAnubisInterface
 from SetAnubis.core.BranchingRatio.adapters.input.DecayInterface import DecayInterface
 from SetAnubis.core.BranchingRatio.adapters.input.DecayInterface import CalculationDecayStrategy

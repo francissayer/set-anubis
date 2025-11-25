@@ -1,4 +1,4 @@
-from SetAnubis.core.Pythia.domain.cmnd_section_type import CMNDSectionType
+from SetAnubis.core.Pythia.domain.CMNDSectionType import CMNDSectionType
 
 class CMNDSection:
     def __init__(self, section_type: CMNDSectionType, content: str):

@@ -1,11 +1,11 @@
-from SetAnubis.core.Pythia.adapters.input.cmnd_scan_manager import CMNDScanManager
-from SetAnubis.core.Pythia.domain.cmnd_base_generation import CMNDGenerationManager
-from SetAnubis.core.Pythia.domain.special_cases import Specials
+from SetAnubis.core.Pythia.adapters.input.CMNDScanManager import CMNDScanManager
+from SetAnubis.core.Pythia.domain.CMNDBaseGeneration import CMNDGenerationManager
+from SetAnubis.core.Pythia.domain.SpecialCases import Specials
 from SetAnubis.core.Pythia.infrastructure.enums import HardProductionQCDList
 from SetAnubis.core.ModelCore.adapters.input.SetAnubisInteface import SetAnubisInterface
 from SetAnubis.core.BranchingRatio.adapters.input.DecayInterface import DecayInterface
 from SetAnubis.core.BranchingRatio.adapters.input.DecayInterface import CalculationDecayStrategy
-from SetAnubis.core.Pythia.adapters.input.pythia_run_interface import PythiaRunInterface
+from SetAnubis.core.Pythia.adapters.input.PythiaRunInterface import PythiaRunInterface
 
 if __name__ == "__main__":
     import os

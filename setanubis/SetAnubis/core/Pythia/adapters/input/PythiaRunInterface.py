@@ -1,4 +1,4 @@
-from SetAnubis.core.Pythia.domain.pythia_run_manager import PythiaSimulationManager
+from SetAnubis.core.Pythia.domain.PythiaRunManager import PythiaSimulationManager
 from pathlib import Path
 from typing import List
 

@@ -1,4 +1,4 @@
-from SetAnubis.core.Pythia.adapters.input.pythia_cmnd_interface import PythiaCMNDInterface
+from SetAnubis.core.Pythia.adapters.input.PythiaCMNDInterface import PythiaCMNDInterface
 from SetAnubis.core.ModelCore.adapters.input.SetAnubisInteface import SetAnubisInterface
 from SetAnubis.core.BranchingRatio.adapters.input.DecayInterface import DecayInterface
 from SetAnubis.core.BranchingRatio.adapters.input.DecayInterface import CalculationDecayStrategy

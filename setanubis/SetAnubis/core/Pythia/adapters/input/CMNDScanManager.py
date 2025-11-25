@@ -2,11 +2,11 @@ import itertools
 import os
 from typing import List, Dict, Any, Tuple
 from pathlib import Path
-from SetAnubis.core.Pythia.adapters.input.pythia_cmnd_interface import PythiaCMNDInterface
+from SetAnubis.core.Pythia.adapters.input.PythiaCMNDInterface import PythiaCMNDInterface
 from SetAnubis.core.Pythia.infrastructure.enums import AbstractEnumProduction
 from SetAnubis.core.BranchingRatio.adapters.input.DecayInterface import DecayInterface
 from SetAnubis.core.ModelCore.adapters.input.SetAnubisInteface import SetAnubisInterface
-from SetAnubis.core.Pythia.domain.special_cases import Specials, GeneralParams, GeneralType
+from SetAnubis.core.Pythia.domain.SpecialCases import Specials, GeneralParams, GeneralType
 from SetAnubis.core.Common.MultiSet import MultiSet
 
 class CMNDScanManager:
