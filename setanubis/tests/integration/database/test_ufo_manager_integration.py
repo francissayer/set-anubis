@@ -4,7 +4,7 @@ import pytest
 
 import SetAnubis.core.DataBase.domain.UFOManager as ufo_manager_mod
 import SetAnubis.core.DataBase.adapters.UFOParser as ufo_parser_mod
-
+from SetAnubis.core.Common.MultiSet import MultiSet
 
 class ExpressionTreeFake:
     def __init__(self, params):
@@ -79,10 +79,11 @@ WDEC = Decay(name='X', particle=Obj.X, partial_widths={
 
     decs = mgr.get_decays()
     assert 4000 in decs
-    keys = sorted(decs[4000].keys())
-    assert keys == [(1000,2000), (2000,3000)]
-    assert decs[4000][(1000,2000)] == "a + b"
-    assert "cos(" in decs[4000][(2000,3000)]
+    keys = decs[4000].keys()
+
+    assert list(keys) == [MultiSet([1000,2000]), MultiSet([2000,3000])]
+    assert decs[4000][MultiSet([1000,2000])] == "a + b"
+    assert "cos(" in decs[4000][MultiSet([2000,3000])]
 
     only_new = mgr.get_decays_from_new_particles()
     assert set(only_new.keys()) == {4000}
@@ -97,8 +98,8 @@ WDEC = Decay(name='X', particle=Obj.X, partial_widths={
     model_particles.append({"name":"Y", "pdg_code": 5000})
 
     dec_to_new = mgr.get_decays_to_new_particles()
-    assert 4000 in dec_to_new and (1000,5000) in dec_to_new[4000]
-    assert dec_to_new[4000][(1000,5000)] == "kappa"
+    assert 4000 in dec_to_new and MultiSet([1000,5000]) in dec_to_new[4000]
+    assert dec_to_new[4000][MultiSet([1000,5000])] == "kappa"
 
 
 def test_param_tree_and_sm_evaluation(tmp_path, monkeypatch):

@@ -16,7 +16,7 @@ class FakeManager:
             3: 0.093,      # s
             4: 1.27,       # c
         }
-    def get_mass(self, pdg_code: int) -> float:
+    def get_particle_mass(self, pdg_code: int) -> float:
         return self._m[pdg_code]
 
 @pytest.fixture
