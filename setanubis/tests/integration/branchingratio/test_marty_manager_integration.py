@@ -99,7 +99,7 @@ def test_end_to_end_builds_files_and_calls_compilers(tmp_path):
     assert analytic_cpp.read_text() == "ANALYTIC_CODE"
 
     mm_mod.neo = nsa
-    mgr.launch_analytic(23, MultiSet([2, -2]))
+    mgr.launch_analytic(23, MultiSet([2, -2]), nsa)
     assert StubCompiler.calls and StubCompiler.calls[-1][0] == mm_mod.CompilerType.GCC
 
     mgr.build_numeric(23, MultiSet([2, -2]), nsa, builder_marty=object())

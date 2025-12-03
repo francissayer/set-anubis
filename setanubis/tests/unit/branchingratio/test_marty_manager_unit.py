@@ -124,7 +124,7 @@ def test_launch_analytic_calls_compiler_and_paths(monkeypatch, tmp_path):
     mm_mod.neo = FakeNSA()
 
     mgr = mm_mod.MartyManager("SM")
-    mgr.launch_analytic(23, MultiSet([2, -2]))
+    mgr.launch_analytic(23, MultiSet([2, -2]), mm_mod.neo)
 
     assert FakeCompiler.last_calls, "compile_run non appelé"
     tag, ctype, ampli, src, out, outdir, pattern = FakeCompiler.last_calls[-1]
