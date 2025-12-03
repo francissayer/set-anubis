@@ -19,7 +19,7 @@ class MartyManager:
     def calculate_process(self, mothers_id : MultiSet, daugthers_id : MultiSet, neo : SetAnubisInterface, builder_marty : MartyFileCopyBuilder):
         
         self.build_analytic(mothers_id, daugthers_id, neo, builder_marty)
-        self.launch_analytic(mothers_id, daugthers_id)
+        self.launch_analytic(mothers_id, daugthers_id, neo)
         self.build_numeric(mothers_id, daugthers_id, neo, builder_marty)
         return self.launch_numeric(mothers_id, daugthers_id, neo)
     
@@ -42,7 +42,7 @@ class MartyManager:
         
         pass
     
-    def launch_analytic(self, mothers_id, daugthers_id):
+    def launch_analytic(self, mothers_id, daugthers_id, neo):
         decay = decay_name(mothers_id, daugthers_id, neo, load_ufo_mappings(True))
         cpp_filename = f"{decay}.cpp"
             

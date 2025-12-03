@@ -20,14 +20,14 @@ fi
 
 # === Étape 2 : Patch du CMakeLists.txt (set C++20) ===
 echo "🛠️  Applying C++20 patch..."
-sed -i 's/set(CMAKE_CXX_STANDARD 17)/set(CMAKE_CXX_STANDARD 20)/' "$SRC_DIR/CMakeLists.txt" || true
+sed -i 's/set(CMAKE_CXX_STANDARD 17)/set(CMAKE_CXX_STANDARD 20)/' "$SRC_DIR/MARTY/CMakeLists.txt" || true
 
 # === Étape 3 : Création du build directory ===
 echo "🏗️  Configuring Marty..."
 mkdir -p "$CLONE_DIR/build"
 cd "$CLONE_DIR/build"
 
-cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-O0" -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR"
 
 # === Étape 4 : Patchs Marty source ===
 echo "🩹 Patching Marty sources..."
@@ -64,8 +64,8 @@ fi
 
 # === Étape 5 : Compilation ===
 echo "🔨 Building Marty..."
-make -j"$(nproc)"
-
+# make -j"$(nproc)"
+make
 # === Étape 6 : Installation ===
 echo "📦 Installing Marty..."
 make install
