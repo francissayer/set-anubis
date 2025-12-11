@@ -6,16 +6,15 @@ import pyhepmc
 
 from SetAnubis.core.ModelCore.adapters.input.SetAnubisInteface import SetAnubisInterface
 from SetAnubis.core.Selection.domain.HepMCFrameBuilder import HepmcFrameBuilder, HepmcFrameOptions
-from selectLLPs import createDFfromHEPMC
 
 HEPMC_FILE = (
     "db/Temp/madgraph/Events/Events/run_01_decayed_1/"
     "tag_1_pythia8_events.hepmc/tag_1_pythia8_events.hepmc"
 )
 
-HEPMC_FILE = (
-    "tag_1_pythia8_events.hepmc"
-)
+# HEPMC_FILE = (
+#     "tag_1_pythia8_events.hepmc"
+# )
 
 import os
 
