@@ -1,5 +1,5 @@
 from SetAnubis.core.Selection.domain.SelectionEngine import SelectionConfig, MinThresholds, MinDR
-from write_and_load_selection_dict import load_bundle
+from SetAnubis.core.Selection.adapters.output.WriteLoadSelectionDict import load_bundle
 from SetAnubis.core.Selection.adapters.input.SelectionGeometryAdapter import SelectionGeometryAdapter
 from SetAnubis.core.Geometry.adapters.selection_adapter import GeometrySelectionAdapter
 from SetAnubis.core.Selection.domain.JetBuilder import createJetDF

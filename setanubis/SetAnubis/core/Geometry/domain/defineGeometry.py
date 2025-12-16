@@ -816,7 +816,7 @@ class ATLASCavern():
 
         return {"corners": corners, "midPoint": midPoints, "LayerID": layerIDs, "RPCid": RPCIDs, "plane": planes} 
 
-    from _plotGeometry import plotCavernXY, plotCavernXZ, plotCavernZY, plotCavern3D, plotRPCsXY, plotRPCsXZ, plotRPCsZY, plotRPCs3D,\
+    from SetAnubis.core.Geometry.domain._plotGeometry import plotCavernXY, plotCavernXZ, plotCavernZY, plotCavern3D, plotRPCsXY, plotRPCsXZ, plotRPCsZY, plotRPCs3D,\
                               plotSimpleRPCsXY, plotHitsHist, plotHitsScatter, plotShaftRPCsXY, plotShaftRPCsXZ, plotShaftRPCsZY, plotShaftRPCs3D
 
     # Plot all features of the ATLAS Cavern, plus additional features if provided: e.g. ANUBIS.

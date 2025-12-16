@@ -1,7 +1,4 @@
-import json
-import time
-import numpy as np
-import pandas as pd
+import os
 import pyhepmc
 
 from SetAnubis.core.ModelCore.adapters.input.SetAnubisInteface import SetAnubisInterface
@@ -12,16 +9,13 @@ HEPMC_FILE = (
     "tag_1_pythia8_events.hepmc/tag_1_pythia8_events.hepmc"
 )
 
-# HEPMC_FILE = (
-#     "tag_1_pythia8_events.hepmc"
-# )
+HEPMC_FILE = (os.path.abspath(os.path.join(__file__, "..", "..", "..", "..", "..", "Assets", "Test", "MadGraphOutput", "Events", "run_01_decayed_1", "tag_1_pythia8_events.hepmc.gz")))
 
-import os
 
-UFO_HNL_DIR = os.path.abspath(os.path.join(__file__, "..", "..", "..", "..", "..", "Assets", "UFO", "UFO_HNL"))
+UFO_HAHM_DIR = os.path.abspath(os.path.join(__file__, "..", "..", "..", "..", "..", "Assets", "UFO", "HAHM_variableMW_v5_UFO"))
 
 if __name__ == "__main__":
-    neo = SetAnubisInterface(UFO_HNL_DIR)
+    neo = SetAnubisInterface(UFO_HAHM_DIR)
 
     def on_progress(n: int):
         print(f"[build] {n} events")
@@ -34,3 +28,5 @@ if __name__ == "__main__":
 
     with pyhepmc.open(HEPMC_FILE) as stream:
         df, unknown = builder.build_from_events(stream)
+        
+        df.to_pickle("perfect_df.pkl")
