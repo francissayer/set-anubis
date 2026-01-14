@@ -12,7 +12,7 @@ Four = Tuple[float, float, float, float]
 @dataclass(frozen=True)
 class HepmcFrameOptions:
     """
-        Options on the DataFrame creation
+        Options for the DataFrame creation
     """
     progress_every: Optional[int] = 100      # None -> No callback
     stop_after_events: Optional[int] = None  # safety limitation
@@ -23,7 +23,7 @@ class HepmcFrameBuilder:
     """
     transform an iterable from pyhepmc to a Dataframe (ready for selection)
 
-    ask NeoSetAnubis for any particle charge (using pdgid).
+    Ask SetAnubis for any particle charge (using pdgid).
     Calculate the pT, phi, eta, etc.
     ctau = decayVertexDist / (gamma*beta).
     
@@ -120,6 +120,7 @@ class HepmcFrameBuilder:
                 hepMCdict["beta"].append(beta)
                 hepMCdict["boost"].append(boost)
 
+                # MET columns are a placeholder - will be determined later for the LLPs specifically based on the other particles in an event. 
                 if self.opt.compute_met:
                     metx = mety = met = 0.0
                 else:
@@ -145,6 +146,7 @@ class HepmcFrameBuilder:
 
         df = pd.DataFrame.from_dict(hepMCdict)
 
+        # Ensure the MET branches are treated as floats
         for col in ("MET", "METx", "METy"):
             if col in df.columns:
                 df[col] = df[col].astype(float)
@@ -170,13 +172,14 @@ class HepmcFrameBuilder:
         return math.sqrt(m2) if m2 > 0 else 0.0
 
     def _theta(self, px: float, py: float, pz: float, pabs: float) -> float:
-        return math.acos(pz / pabs) if pabs != 0.0 else 0.0
+        return math.acos(pz / pabs) if pabs != 0.0 else np.nan
 
     def _eta(self, px: float, py: float, pz: float, pabs: float) -> float:
         mom = np.sqrt(np.power(px,2) + np.power(py,2) + np.power(pz,2))
 
+        # The longitudinal direction is the z direction
         if mom-pz==0 or mom+pz==0:
-            eta = np.nan
+            eta = np.nan # pseudorapidity is undefined when fully longitudinal
         else:
             eta = 0.5*np.log( (mom + pz) / (mom - pz))
         
@@ -194,13 +197,13 @@ class HepmcFrameBuilder:
         if E <= 0.0:
             return 0.0
         b = pabs / E
-        return min(max(b, 0.0), 0.999999999999)  # avoid beta =1.0 exact
+        return min(max(b, 0.0), 1)  # avoid beta >1.0 or beta < 0. Be aware of this if your model includes superluminal particles!
 
     def _gamma(self, beta: float) -> float:
         if beta <= 0.0:
             return 1.0
         inv = 1.0 - beta*beta
-        return 1.0 / math.sqrt(inv) if inv > 0.0 else float("inf")
+        return 1.0 / math.sqrt(inv) if inv > 0.0 else np.nan
 
     def calculate_boost(self, p, m):
         # E=gamma*mc^2, so if m is in GeV and so is E then gamma = E/m
@@ -220,7 +223,6 @@ class HepmcFrameBuilder:
         """
             Return ((x,y,z,t), r) or r = sqrt(x^2+y^2+z^2).
             If vtx is None, return missing and 0.0
-            Si vtx est None, on renvoie missing et 0.0.
         """
         if vtx is None or getattr(vtx, "position", None) is None:
             return missing, 0.0
@@ -253,13 +255,11 @@ class HepmcFrameBuilder:
         return w if w is not None else 1.0
 
     def _get_charge_from_neo(self, pid: Optional[int], unknown_pids: Set[int]) -> Optional[float]:
-        info = self.neo.get_particle(pid) if hasattr(self.neo, "get_particle") else self.neo.get_particle_info(pid)
-        if pid is None:
-            return None
         try:
             info = self.neo.get_particle(pid) if hasattr(self.neo, "get_particle") else self.neo.get_particle_info(pid)
         except Exception:
             info = None
+            
         if isinstance(info, dict) and "charge" in info:
             ch = info["charge"]
             try:
