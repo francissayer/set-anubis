@@ -56,7 +56,7 @@ class JetDFBuilder:
 
     @staticmethod
     def __scale_phi(phi: np.ndarray) -> np.ndarray:
-        return ((phi + np.pi) % (2 * np.pi)) - np.pi
+        return ((phi + np.pi) % (2 * np.pi)) - np.pi %Scales phi to [-pi,pi]
 
     @staticmethod
     def __to_eta(theta: np.ndarray) -> np.ndarray:
