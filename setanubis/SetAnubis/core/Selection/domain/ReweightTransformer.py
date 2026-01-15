@@ -41,7 +41,7 @@ def _add_fourvec(a: Tuple[float, float, float, float],
 @dataclass(frozen=True)
 class DataBundle:
     """
-    Not mutable contener for df producted by analyzer.
+    Not mutable container for df produced by analyzer.
     """
     finalStates: pd.DataFrame
     LLPs: pd.DataFrame
@@ -73,7 +73,6 @@ class DataBundle:
 class RandomProvider:
     """
     Injected RNG service (avoid global state from numpy)
-    Service RNG injecté (au lieu d'utiliser l'état global numpy).
     """
     def __init__(self, seed: Optional[int | str] = None) -> None:
         # string → hash stable
@@ -106,7 +105,7 @@ class ReweightKernel(Protocol):
 
 class LifetimeKernel:
     """
-    Éq. 49.14 (PDG 2022) — legacy from Paul:
+    Eq. 49.14 (PDG 2022) — legacy from Paul:
     np.random.exponential(scale = lifetime * gamma) * beta * c * 1000  [mm]
     """
     name = "weighted"
@@ -124,7 +123,7 @@ class LifetimeKernel:
 
 class PositionKernel:
     """
-    Éq. 49.15 (PDG 2022) — legacy from Paul:
+    Eq. 49.15 (PDG 2022) — legacy from Paul:
     np.random.exponential(scale = lifetime * gamma * beta * c) * 1000  [mm]
     (directly in mm)
     """
@@ -172,9 +171,10 @@ def _to_cartesian(r: float, eta: float, phi: float):
       cosθ = tanh(eta)
       sinθ = 1/cosh(eta)
     """
-    x = r * np.sin(to_theta(eta)) * np.cos(phi)
-    y = r * np.sin(to_theta(eta)) * np.sin(phi)
-    z = r * np.cos(to_theta(eta))
+    theta = to_theta(eta)
+    x = r * np.sin(theta) * np.cos(phi)
+    y = r * np.sin(theta) * np.sin(phi)
+    z = r * np.cos(theta)
     return [x, y, z]
 
 
@@ -194,7 +194,7 @@ class Transformer(Protocol):
 
 class ReweightDecayPositions(Transformer):
     """
-    Apply a reweight of position and desintegration for LLPs and propagate translation to the desintegration products (LLPchildren).
+    Apply a reweight of position and disintegration for LLPs and propagate translation to the disintegration products (LLPchildren).
     Add for deach kernel columns decayVertexDist_<name>, decayVertex_<name>, ctau_<name>
     Add decayVertex_translation (4-vector, Δx,Δy,Δz,0)
     Add in LLPchildren:
@@ -277,7 +277,7 @@ class ReweightDecayPositions(Transformer):
     @staticmethod
     def _translate_vertex(row: pd.Series, vertex_col: str, translation: Tuple[float, float, float, float]) -> Tuple[float, float, float, float]:
         """
-        if (final state or status==1) and decayvertex traduction then (-1,-1,-1,-1)
+        if (final state or status==1) and "decayvertex" translation then set to (-1,-1,-1,-1)
         else vertex + translation (4-vector sum).
         """
         if ( ((row.get("nChildren", 0) == 0) or (row.get("status", 0) == 1)) and ("prodVertex" not in vertex_col) ):
@@ -317,7 +317,7 @@ class ReweightDecayPositions(Transformer):
             col_dist = f"decayVertexDist_{name}"
             col_ctau = f"ctau_{name}"
             llps[col_dist] = dist
-            # ctau in s : L(mm) / (γβ c (mm/s))
+            # ctau in mm : L(mm) / (γβ)
             gamma = llps["boost"].to_numpy(dtype=float, copy=False)
             beta = llps["beta"].to_numpy(dtype=float, copy=False)
             denom = np.maximum(gamma * beta, 1e-300)
