@@ -50,15 +50,6 @@ class ATLASCavern():
         self.CavernZLength = 52.8 #metres  #Potentially 53m
         self.CavernZ = [-self.CavernZLength/2, self.CavernZLength/2]
 
-        # There is a trench in the cavern which ATLAS partially sits in.
-        self.CavernTrench = {"X": [self.CavernX[0] + 9.3, self.CavernX[1] - 7.2], 
-                             "Y": [self.CavernY[0] - 1.9, self.CavernY[0]],
-                             "Z": [self.CavernZ[0] + 4.4, self.CavernZ[1] - 3.8], #metres
-                             "XLength": 14.5, #metres
-                             "YLength": 1.9, #metres
-                             "ZLength": 44.6, #metres
-        }
-        
         #=========================#
         #   Cavern Boundaries     #
         #=========================#
@@ -76,7 +67,7 @@ class ATLASCavern():
         #=============================================================================#
         # The Interaction point does not align with the centre of the ATLAS Cavern.
         # Give the relative position to the centre of the ATLAS Cavern:
-        self.IP = {"x": 1.7, #metres, in XY technial drawings +ve x is to the left
+        self.IP = {"x": -1.7, #metres
                    "y": -self.CavernYLength/2 + 11.37, #metres #From https://core.ac.uk/download/pdf/44194071.pdf Page 14
                    "z": 0} #metres
         #=============================================================================#
@@ -133,27 +124,6 @@ class ATLASCavern():
         self.ANUBIS_RPCs = []
         self.RPCeff = 1
         self.nRPCsPerLayer = 1 
-
-        #==============================#
-        # Plotting Utility Definitions #
-        #==============================#
-        # A set of useful colours for RPC layers to be consistent across all plots
-        self.LayerColours = ["violet", "coral", "green", "maroon", "chartreuse", "gray"]
-        self.LayerLS = ["--"]
-        self.cavernColour = "paleturquoise" #"#66A2C8" 
-        self.cavernLS = "solid" # Cavern Linestyle
-        self.ATLAScolour =  "blue" #"#244A3D"
-        self.ATLASls = "--" # ATLAS Linestyle
-        self.shaftColour = {"PX14": "red", "PX16": "turquoise"} 
-        self.shaftLS = {"PX14": "--", "PX16": "--"} 
-
-        self.annotationSize = 15 # Font size of text overlaid on plots e.g. "IP" or "Centre of Curvature". 
-        self.pointMargin = 0.2 # Small distance of margin away from annotated points
-        self.includeCoCText = True # Include point to show the Centre of Curvature on plots
-        self.includeCavernCentreText = True # Include point to show the Centre of the Cavern on plots
-        self.includeATLASlimit = True # Include the max radius in ATLAS used to define ANUBIS fiducial volume
-        self.includeCavernYinZY = True
-        self.additionalAnnotation = False # Include additional labels 
 
     #------------------------------#
     #     Helper Functions         #
@@ -271,33 +241,27 @@ class ATLASCavern():
             if includeCavernCone and (y < self.shaftParams[shaft]["Centre"]["y"]):
                 coneTip = np.array([self.IP["x"], self.IP["y"], self.IP["z"]]) # Take the IP as the cone's tip
                 point = np.array([x,y,z])
-
-                # Define the extrema xz values for the base of a slanted cone with the point at the IP
-                xS = [self.shaftParams[shaft]["Centre"]["x"] - self.shaftParams[shaft]["radius"],
-                      self.shaftParams[shaft]["Centre"]["x"] + self.shaftParams[shaft]["radius"]]
-                zS = [self.shaftParams[shaft]["Centre"]["z"] - self.shaftParams[shaft]["radius"],
-                      self.shaftParams[shaft]["Centre"]["z"] + self.shaftParams[shaft]["radius"]]
-
-                if self.shaftParams[shaft]["Centre"]["x"]!=0:
-                    # If this needs to be adjusted would need a projection in the x direction for the cone.
-                    raise Exception(f"Currently this function expects the shafts to be centred on 0 as in the ATLAS cavern ",
-                                    f"and not {self.shaftParams[shaft]['Centre']['x']}")
-
-                l = [ np.sqrt( np.power(zS[0],2) + np.power(self.shaftParams[shaft]["Centre"]["y"],2)), 
-                      np.sqrt( np.power(zS[1],2) + np.power(self.shaftParams[shaft]["Centre"]["y"],2)) ]
-                coneOpeningAngle = abs(np.arccos(np.clip(zS[0]/l[0],-1.0,1.0)) - np.arccos(np.clip(zS[1]/l[1],-1.0,1.0)))
                 
-                # Project the slanted cone into a straight cone with side length the maximum of l, and the same opening angle -- easier to work with
-                cIdx = np.argmax(l)
-                coneSideLength = l[cIdx]
-                coneBaseR = coneSideLength*np.sin(coneOpeningAngle/2) # The base Radius of the cone
-                coneHeight = coneSideLength*np.cos(coneOpeningAngle/2) # The total height of the cone from base to tip
+                xSign = np.sign(self.shaftParams[shaft]["Centre"]["x"])
+                if xSign==0:
+                    xSign=1
+                zSign = np.sign(self.shaftParams[shaft]["Centre"]["z"])
+                if zSign==0:
+                    zSign=1
+                x1 = self.shaftParams[shaft]["Centre"]["x"] - xSign*(self.shaftParams[shaft]["radius"])# + self.IP["x"])
+                x2 = self.shaftParams[shaft]["Centre"]["x"] + xSign*(self.shaftParams[shaft]["radius"])# - self.IP["x"])
+                z1 = self.shaftParams[shaft]["Centre"]["z"] - zSign*(self.shaftParams[shaft]["radius"])# + self.IP["z"])
+                z2 = self.shaftParams[shaft]["Centre"]["z"] + zSign*(self.shaftParams[shaft]["radius"])# - self.IP["z"])
+                l1 = np.sqrt( np.power(z1,2) + np.power(self.shaftParams[shaft]["Centre"]["y"],2)) 
+                l2 = np.sqrt( np.power(z2,2) + np.power(self.shaftParams[shaft]["Centre"]["y"],2)) 
+                coneOpeningAngle = np.arccos(np.clip(z1/l1,-1.0,1.0)) - np.arccos(np.clip(z2/l2,-1.0,1.0))
 
-                # Base centre uses the right angle set up by drawing line from point of the cone to the midpoint:
-                #   - Angle is the sum of half the opening angle and the angle of the point that lies on the shaft circle still (cIdx).
-                baseCentre = np.array([ coneHeight*np.cos(coneOpeningAngle/2 + np.arccos(np.clip(xS[cIdx]/coneSideLength,-1.0,1.0))),
-                                        coneHeight*np.sin(coneOpeningAngle/2 + np.arccos(np.clip(zS[cIdx]/coneSideLength,-1.0,1.0))),
-                                        coneHeight*np.cos(coneOpeningAngle/2 + np.arccos(np.clip(zS[cIdx]/coneSideLength,-1.0,1.0)))])
+                coneBaseR = l2*np.sin(coneOpeningAngle/2) # The base Radius of the cone
+                coneHeight = l2*np.cos(coneOpeningAngle/2) # The total height of the cone from base to tip
+
+                baseCentre = np.array([ coneHeight*np.cos(coneOpeningAngle/2 + np.arccos(np.clip(x2/l2,-1.0,1.0))),
+                                        coneHeight*np.sin(coneOpeningAngle/2 + np.arccos(np.clip(z2/l2,-1.0,1.0))),
+                                        coneHeight*np.cos(coneOpeningAngle/2 + np.arccos(np.clip(z2/l2,-1.0,1.0)))])
 
                 #direction vector of the cone
                 divV=baseCentre - coneTip
@@ -305,8 +269,7 @@ class ATLASCavern():
                 
                 pointH = np.dot(divV, point - coneTip) # Project point along the cone axis -- gives height from tip.
 
-                # Using similar triangles with angle 0.5*coneOpeningAngle get the radius of the circular section for pointH
-                pointMaxR = (coneBaseR / coneHeight) * pointH 
+                pointMaxR = (coneBaseR / coneHeight) * pointH # Using similar triangles get the radius of the circular section for pointH
                 
                 # Find the points radial distance from the cone axis
                 pointR = np.sqrt( np.power(np.linalg.norm(point-coneTip),2) - np.power(pointH,2))
@@ -335,7 +298,6 @@ class ATLASCavern():
             rTarget = self.radiusATLAS # Entire ATLAS Envelope
 
         if verbose:
-            print(f"(x,y,z): ({x},{y},{z})")
             print(f"r: {r} | rTarget: {rTarget} | {r<rTarget}")
             print(f"z: {z} | Z in ({self.ATLAS_Z[0]},{self.ATLAS_Z[1]}) | {(z > self.ATLAS_Z[0] and z < self.ATLAS_Z[1])}") 
 
@@ -424,8 +386,8 @@ class ATLASCavern():
         #For ease define terms as above:
         a, b = self.centreOfCurvature["x"], self.centreOfCurvature["y"]
         c, d, e = position
-        m = np.tan(phi) # Gradient in xy space
-        n = np.tan(theta)*np.sin(phi) # Gradient in zy space
+        m = np.tan(phi)
+        n = np.tan(theta) if phi > 0 else np.tan(-theta) # Correctly determine if particle is up- or down-going
 
         nIntersections=0
         intersections=[]
@@ -476,6 +438,10 @@ class ATLASCavern():
                     tY = [m*(tX[0]-c)+d, m*(tX[1]-c)+d]
 
                     intIndex = np.argwhere(np.array(tY)>0)
+                    if verbose:
+                        print(f"Full intersection solutions (x,y): {tX} | {tY}")
+                        print(intIndex, len(intIndex), intIndex[0], len(intIndex[0]))
+                    
                     if len(intIndex)==0:
                         continue
                     
@@ -490,7 +456,9 @@ class ATLASCavern():
                             vec1 = self.createVector([tempIntX, tempIntY], [position[0], position[1]])
                             vec2 = self.createVector([self.CavernX[1], 0], [0, 0])
                             tempPhi = np.dot(vec1, vec2) / ( np.linalg.norm(vec1) * np.linalg.norm(vec2))
-                            tempPhi = np.sign(vec1[1])*np.arccos(np.clip(tempPhi, -1, 1)) # In radians, the sign function ensures a [-pi, pi] range
+                            tempPhi = np.sign(vec1[1])*np.arccos(np.clip(tempPhi, -1, 1)) # In radians
+                            print(f"vec1 vec2: {vec1}, {vec2}")
+                            print(f"phi, tempPhi: {phi}, {tempPhi} | {abs(phi-tempPhi)}")
 
                             phiDiff.append(abs(phi - tempPhi))
 
@@ -506,8 +474,9 @@ class ATLASCavern():
                         print(f"IntX, IntY: {intX}, {intY}")
 
             # Intersection in zy
-            intZ = ( (intY - d)/n ) + e
+            intZ = np.sqrt(np.power((intY - d),2)+np.power((intX-c),2))/n + e
             if verbose:
+                print(f"d, n, e: {d}, {n}, {e}")
                 print(f"IntZ: {intZ}")
 
             # Check if intersections are valid
@@ -523,17 +492,18 @@ class ATLASCavern():
             if (intX < min(extremaX) or intX > max(extremaX)) or (intX<min(self.CavernX) or intX > max(self.CavernX)):
                 continue
 
-            extremaZ = [] # Extrapolating the z extent in zy space, this should pretty much match the CavernZ range so this is somewhat a redundant check.
-            for alphaIndex in [1,0]:
-                vec1 = self.createVector([self.CavernZ[alphaIndex], intY], [0, 0])
+            extremaZ = []
+            for i in [1,0]:
+                # Getting minimum Y values to get max theta coverage: This is on the X boundaries of the cavern.
+                vec1 = self.createVector([self.CavernZ[i], intY], [0, 0])
                 vec2 = self.createVector([self.CavernZ[1], 0], [0, 0])
-                tempAlpha = np.dot(vec1, vec2) / ( np.linalg.norm(vec1) * np.linalg.norm(vec2))
-                tempAlpha = np.arccos(np.clip(tempAlpha, -1, 1)) # In radians
+                tempTheta = np.dot(vec1, vec2) / ( np.linalg.norm(vec1) * np.linalg.norm(vec2))
+                tempTheta = np.arccos(np.clip(tempTheta, -1, 1)) # In radians
 
-                if np.isclose(tempAlpha, np.pi/2) or np.isclose(tempAlpha, -np.pi/2):
+                if np.isclose(tempTheta, np.pi/2) or np.isclose(tempTheta, -np.pi/2):
                     extremaZ.append(self.IP["z"])
                 else:
-                    extremaZ.append(intY/np.tan(tempAlpha) + self.IP["z"]) 
+                    extremaZ.append(intY/np.tan(tempTheta) + self.IP["z"])
                     
             if verbose:
                 print(f"\t Valid Z range: {intZ} in {min(extremaZ)} to {max(extremaZ)}? {not(intZ < min(extremaZ) or intZ > max(extremaZ))}")
@@ -556,6 +526,11 @@ class ATLASCavern():
             # Sanity Check that the intersection point is in the correct direction
             sanityThreshold = 1E-5
             checkTheta = np.arccos(np.clip( (intZ-e)/(np.sqrt(np.power((intX-c),2) +  np.power((intY-d),2) + np.power((intZ-e),2))), -1.0,1.0))
+            #TODO: Verify the definition of Theta in this context compared to ATLAS, and whether the below measure is an accurate representative.
+            vec1 = self.createVector([intZ, intY], [0, 0])
+            vec2 = self.createVector([self.CavernZ[1], 0], [0, 0])
+            checkTheta2 = np.dot(vec1, vec2) / ( np.linalg.norm(vec1) * np.linalg.norm(vec2))
+            checkTheta2 = np.arccos(np.clip(checkTheta2, -1, 1)) # In radians
 
             vec1 = self.createVector([intX, intY], [position[0], position[1]])
             vec2 = self.createVector([self.CavernX[1], 0], [0, 0])
@@ -566,7 +541,8 @@ class ATLASCavern():
                 print("Checking direction between intersection and original point")
                 print(f"Actual Theta, and projected Theta: {theta} | {checkTheta} | abs(checkTheta - theta) > {sanityThreshold}: {abs(checkTheta-theta)>sanityThreshold}")
                 print(f"Actual Phi, and projected Phi: {phi} | {checkPhi} | abs(checkPhi - phi) > {sanityThreshold}: {abs(checkPhi-phi)>sanityThreshold}")
-                
+
+            # print(checkTheta, checkTheta2)
             if abs(checkTheta-theta)>sanityThreshold or abs(checkPhi-phi) > sanityThreshold:
                 continue
 
@@ -616,12 +592,11 @@ class ATLASCavern():
                     print(f"(phi -ve) -> Y condition: {position[2]} > {ANUBISstations['y'][idx][0]}: {position[2] > ANUBISstations['y'][idx][0]}")
             if (position[1] < ANUBISstations["y"][idx][0] and phi>=0) or\
                (position[1] > ANUBISstations["y"][idx][0] and phi<0): 
-                # Require hit to be below tracking stations for upgoing tracks and vice versa
+                # Require hit to be below tracking stations for upgoing tracks and vice verse
 
                 # The projected X and Z locations relative to the centre of the RPC station.
                 projX = ((ANUBISstations["y"][idx][0]-position[1]) / np.tan(phi)) + position[0] - ANUBISstations['x'][idx] 
-                projRxy = np.sqrt( np.power( (ANUBISstations["y"][idx][0]-position[1]),2) + np.power((projX - position[0] + ANUBISstations['x'][idx]),2))
-                projZ = (projRxy/ np.tan(theta)) + position[2] - ANUBISstations['z'][idx]
+                projZ = ((ANUBISstations["y"][idx][0]-position[1]) / np.tan(theta)) + position[2] - ANUBISstations['z'][idx]
 
                 if verbose:
                     print(f"{idx} projX, projY, projZ: {projX} | {ANUBISstations['y'][idx][0]} | {projZ}")
@@ -668,24 +643,7 @@ class ATLASCavern():
 
                     if verbose:
                         print(f"Checking that intersection points do not exceed extremaPosition constraint: {extremaPosition} | {passed}")
-
-                # Sanity Check that the intersection point is in the correct direction
-                sanityThreshold = 1E-5
-                checkTheta = np.arccos(np.clip((intZ-position[2])/(np.sqrt(np.power((intX-position[0]),2) + np.power((intY-position[1]),2) + np.power((intZ-position[2]),2))), -1.0,1.0))
-
-                vec1 = self.createVector([intX, intY], [position[0], position[1]])
-                vec2 = self.createVector([self.CavernX[1], 0], [0, 0])
-                checkPhi = np.dot(vec1, vec2) / ( np.linalg.norm(vec1) * np.linalg.norm(vec2))
-                checkPhi = np.sign(vec1[1])*np.arccos(np.clip(checkPhi, -1, 1)) # In radians
-
-                if verbose:
-                    print("Checking direction between intersection and original point")
-                    print(f"Actual Theta, and projected Theta: {theta} | {checkTheta} | abs(checkTheta - theta) > {sanityThreshold}: {abs(checkTheta-theta)>sanityThreshold}")
-                    print(f"Actual Phi, and projected Phi: {phi} | {checkPhi} | abs(checkPhi - phi) > {sanityThreshold}: {abs(checkPhi-phi)>sanityThreshold}")
-
-                if abs(checkTheta-theta)>sanityThreshold or abs(checkPhi-phi) > sanityThreshold:
-                    passed=False
-           
+                    
                 if passed:
                     # Each Simple RPC layer could contain several RPC singlets within - loop over each.
                     for iRPC in range(self.nRPCsPerLayer):
@@ -699,7 +657,7 @@ class ATLASCavern():
                             # Also save the intersecting station layer (and RPC in that layer) 
                             intersectingStations.append((idx, iRPC))
                     if verbose:
-                        print(f"Passed, appending {self.nRPCsPerLayer} intersection(s): ({intX}, {intY}, {intZ})") 
+                        print(f"Passed, appending intersection: {(projX + ANUBISstations['x'][idx], ANUBISstations['y'][idx][0], projZ + ANUBISstations['z'][idx])}") 
                         print("-----------")
 
         if verbose:
@@ -736,8 +694,8 @@ class ATLASCavern():
         for i in [0,1]:
             # Corner of the cavern in YZ space where X is set to 0
             cornerY = self.obtainCavernYFromX(0) - refY
-            vec1 = self.createVector([self.CavernZ[i], cornerY, 0], [refZ, refY, refX])
-            vec2 = self.createVector([self.CavernZ[1], refY, refX], [refZ, refY, refX])
+            vec1 = self.createVector([self.CavernZ[i], cornerY] , [refZ, refY])
+            vec2 = self.createVector([self.CavernZ[1], refY], [refZ, refY])
             tempTheta = np.dot(vec1, vec2) / ( np.linalg.norm(vec1) * np.linalg.norm(vec2))
             theta.append(np.arccos(np.clip(tempTheta, -1, 1))) # In radians
 
@@ -858,9 +816,8 @@ class ATLASCavern():
 
         return {"corners": corners, "midPoint": midPoints, "LayerID": layerIDs, "RPCid": RPCIDs, "plane": planes} 
 
-    from SetAnubis.core.Geometry.domain._plotGeometry import plotCavernXY, plotCavernXZ, plotCavernZY, plotCavern3D, plotRPCsXY, plotRPCsXZ, plotRPCsZY,\ 
-                                                             plotRPCs3D, shaftRPCshape, plotSimpleRPCsXY, plotHitsHist, plotHitsScatter, plotShaftRPCsXY,\
-                                                             plotShaftRPCsXZ, plotShaftRPCsZY, plotShaftRPCs3D,plotCavernCeilingCoords, plotSimpleRPCsLocalCoords
+    from SetAnubis.core.Geometry.domain._plotGeometry import plotCavernXY, plotCavernXZ, plotCavernZY, plotCavern3D, plotRPCsXY, plotRPCsXZ, plotRPCsZY, plotRPCs3D,\
+                              plotSimpleRPCsXY, plotHitsHist, plotHitsScatter, plotShaftRPCsXY, plotShaftRPCsXZ, plotShaftRPCsZY, plotShaftRPCs3D
 
     # Plot all features of the ATLAS Cavern, plus additional features if provided: e.g. ANUBIS.
     def plotFullCavern(self, hits={}, anubisRPCs=[], simpleAnubisRPCs=[], shaftAnubisRPCs=[], plotRPCs={"xy": True, "xz": False, "zy": False, "3D": False},
@@ -988,8 +945,8 @@ class ATLASCavern():
             ax4.scatter(passedHits["x"], passedHits["z"], passedHits["y"], c="lime", marker="^")
             if plotFailed:
                 ax4.scatter(passedHits["x"], passedHits["z"], passedHits["y"], c="red", marker="x")
-        plt.xlabel(f"x /m")
-        plt.ylabel(f"z /m")
+        plt.xlabel(f"z /m")
+        plt.ylabel(f"y /m")
         ax4.set_zlabel("y /m")
         plt.tight_layout()
         if len(ranges["3D"])==0:
@@ -1176,17 +1133,16 @@ class ATLASCavern():
                     origin = (self.centreOfCurvature["x"], self.centreOfCurvature["y"], 0)
 
                 #RPCs["theta"][angleRef].append([min(tempAngles[angleRef]["theta"]), max(tempAngles[angleRef]["theta"])])
-                tempList=[]
+                thetaList=[]
                 for i in [1,0]:
-                    for j in [1,0]:
-                        # Getting minimum Y values to get max theta coverage: This is on the X boundaries of the cavern.
-                        cornerY = np.sqrt((r**2) - ((self.CavernX[i] - self.centreOfCurvature["x"])**2)) + self.centreOfCurvature["y"]
-                        vec1 = self.createVector([self.CavernZ[j], cornerY, self.CavernX[i]], [origin[2], origin[1], origin[0]])
-                        vec2 = self.createVector([self.CavernZ[1], origin[1], origin[0]], [origin[2], origin[1],origin[0]])
-                        tempTheta = np.dot(vec1, vec2) / ( np.linalg.norm(vec1) * np.linalg.norm(vec2))
-                        tempList.append(np.arccos(np.clip(tempTheta, -1, 1))) # In radians
+                    # Getting minimum Y values to get max theta coverage: This is on the X boundaries of the cavern.
+                    cornerY = np.sqrt((r**2) - ((self.CavernX[i] - self.centreOfCurvature["x"])**2)) + self.centreOfCurvature["y"]
+                    vec1 = self.createVector([self.CavernZ[i], cornerY], [origin[2], origin[1]])
+                    vec2 = self.createVector([self.CavernZ[1], origin[1]], [origin[2], origin[1]])
+                    tempTheta = np.dot(vec1, vec2) / ( np.linalg.norm(vec1) * np.linalg.norm(vec2))
+                    thetaList.append(np.arccos(np.clip(tempTheta, -1, 1))) # In radians
                 
-                RPCs["theta"][angleRef].append([min(tempList), max(tempList)])
+                    RPCs["theta"][angleRef].append(thetaList)
 
                 if r < abs(self.CavernX[0]-self.centreOfCurvature["x"]):
                     RPCs["phi"][angleRef].append([0,2*np.pi]) # As in this case you get a circle within the ATLAS Cavern
@@ -1249,7 +1205,6 @@ if __name__=="__main__":
     parser.add_argument('--remake', action='store_true')
     parser.add_argument('--mode', type=str, choices=["", "full", "simple", "shaft"])
     parser.add_argument('--suffix', type=str, default="")
-    parser.add_argument('--tobyColours', action='store_true')
     args = parser.parse_args()
 
     print(datetime.datetime.now())
@@ -1261,21 +1216,6 @@ if __name__=="__main__":
     print(f"IP Location: {cav.IP}")
     print(f"Centre of Curvature: {cav.centreOfCurvature}")
     print(cav.angles)
-    
-    if args.tobyColours:
-        cav.LayerColours = ["#216E77"]
-        cav.cavernColour = "#66A2C8" 
-        cav.cavernLS = "dotted" # Cavern Linestyle
-        cav.ATLAScolour = "#244A3D"
-        cav.ATLASls = "solid" # ATLAS Linestyle
-        cav.shaftColour = {"PX14": "#66A2C8", "PX16": "#66A2C8"} 
-        cav.shaftLS = {"PX14": "dotted", "PX16": "dotted"} 
-
-        cav.annotationSize = 10 # Font size of text overlaid on plots e.g. "IP" or "Centre of Curvature". 
-        cav.includeCoCText = False # Include point to show the Centre of Curvature on plots
-        cav.includeCavernCentreText = False # Include point to show the Centre of the Cavern on plots
-        cav.includeATLASlimit = True # Include the max radius in ATLAS used to define ANUBIS fiducial volume
-        cav.additionalAnnotation = True
 
     #cav.plotFullCavern(plotATLAS=True, plotAcceptance=True, plotFailed=False, suffix=f"{args.suffix}")
 
@@ -1381,7 +1321,6 @@ if __name__=="__main__":
 
         nHits=0
         passedHits, failedHits = [], []
-        """
         for X in x:
             for Y in y:
                 for Z in z:
@@ -1406,13 +1345,12 @@ if __name__=="__main__":
                     else:
                         failedHits.append((X,Y,Z))
                     nHits+=1
-        """
 
         hitEnd2=datetime.datetime.now()
         print(hitEnd2)
         print(f"Took {hitEnd2 - hitStart2}")
-        #print(f"Passed: {len(passedHits)} ({len(passedHits)/(len(passedHits)+len(failedHits))}) |"
-        #      f"Failed: {len(failedHits)} ({len(failedHits)/(len(passedHits)+len(failedHits))})")
+        print(f"Passed: {len(passedHits)} ({len(passedHits)/(len(passedHits)+len(failedHits))}) |"
+              f"Failed: {len(failedHits)} ({len(failedHits)/(len(passedHits)+len(failedHits))})")
 
         print("plotting...")
         cav.plotFullCavern(simpleAnubisRPCs=ANUBISstations, plotATLAS=True, plotAcceptance=True, plotFailed=False, 
@@ -1482,11 +1420,11 @@ if __name__=="__main__":
 
     def getANUBISstationsDict(self):
         """
-        Returns a dictionary describing ANUBIS stations in a format
-        usable by the legacy intersection functions:
-        - 'simple ceiling' case (createSimpleRPCs): dict with keys 'r', 'theta', 'phi'
-        - 'shaft' case (createShaftRPCs): dict with keys 'x','y','z','RPCradius','pipeCutoff'
-        - 'full ceiling' case (ANUBIS_RPC_positions): list -> converted via convertRPCList()
+        Retourne un dictionnaire décrivant les stations ANUBIS dans un format
+        exploitable par les fonctions d'intersection legacy :
+        - Cas 'simple ceiling' (createSimpleRPCs) : dict avec clés 'r','theta','phi'
+        - Cas 'shaft' (createShaftRPCs) : dict avec clés 'x','y','z','RPCradius','pipeCutoff'
+        - Cas 'full ceiling' (ANUBIS_RPC_positions) : liste -> convertie via convertRPCList()
         """
         rp = getattr(self, "ANUBIS_RPCs", None)
         if rp is None:
