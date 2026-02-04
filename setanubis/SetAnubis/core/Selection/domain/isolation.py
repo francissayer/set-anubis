@@ -5,11 +5,6 @@ import numpy as np
 import pandas as pd
 from SetAnubis.core.Selection.domain.SelectionEngine import SelectionConfig, MinThresholds
 
-
-def _wrap_delta_phi(dphi: np.ndarray) -> np.ndarray:
-    """Replie Δφ sur [-π, π]."""
-    return (dphi + np.pi) % (2.0 * np.pi) - np.pi
-
 @dataclass
 class IsolationComputer:
     """
@@ -76,7 +71,7 @@ class IsolationComputer:
         if etas.size == 0:
             return -1.0
         dEta = etas - eta0
-        dPhi = _wrap_delta_phi(phis - phi0)
+        dPhi = phis - phi0
         dR2  = dEta * dEta + dPhi * dPhi
 
         m = np.nanmin(dR2)
