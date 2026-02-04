@@ -126,6 +126,11 @@ class SelectionGeometryAdapter(ISelectionGeometry):
             val = val()
         return float(val)
 
+    def cavernCentreToIP(self, x, y, z):
+        return self._g.cavernCentreToIP(x, y, z)
+
+    def IPTocavernCentre(self, x, y, z):
+        return self._g.IPTocavernCentre(x, y, z)
 
     def coordsToOrigin(self, x, y, z, origin=[]):
         return self._g.coordsToOrigin(x, y, z, origin)
@@ -376,7 +381,7 @@ class SelectionGeometryAdapter(ISelectionGeometry):
             if hasattr(self._g.geometry, "cavern"):
                 candidates.append(self._g.geometry.cavern)
         for obj in candidates:
-            cto = getattr(obj, "coordsToOrigin", None)
+            cto = getattr(obj, "cavernCentreToIP", None)
             if callable(cto):
                 return cto(x_m, y_m, z_m)
         return (x_m, y_m, z_m)
