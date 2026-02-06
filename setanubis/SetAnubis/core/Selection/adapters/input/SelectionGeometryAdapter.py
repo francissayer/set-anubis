@@ -126,6 +126,11 @@ class SelectionGeometryAdapter(ISelectionGeometry):
             val = val()
         return float(val)
 
+    def cavernCentreToIP(self, x, y, z):
+        return self._g.cavernCentreToIP(x, y, z)
+
+    def IPTocavernCentre(self, x, y, z):
+        return self._g.IPTocavernCentre(x, y, z)
 
     def coordsToOrigin(self, x, y, z, origin=[]):
         return self._g.coordsToOrigin(x, y, z, origin)
@@ -276,7 +281,7 @@ class SelectionGeometryAdapter(ISelectionGeometry):
     ) -> pd.DataFrame:
         """
         - Begining position for start (vertex of children production)
-        - conversion mm -> m then coordsToOrigin
+        - conversion mm -> m then cavernCentreToIP
         - direction (theta, phi) from (eta, phi) or (px,py,pz)
         - If a children is validated if  >= nIntersections *intersections*
         - Keep LLP with >= nTracks valid childrens
@@ -287,7 +292,7 @@ class SelectionGeometryAdapter(ISelectionGeometry):
         ch = children_df
         if requireCharge and "charge" in ch.columns:
             # legacy from paul, -0.555 excluded
-            ch = ch[(ch["charge"] != 0) & (ch["charge"] != -0.555)]
+            ch = ch[(ch["charge"] != 0) & (ch["charge"] != None)]
         if ch.empty:
             return llps_df.iloc[0:0]
 
@@ -309,7 +314,7 @@ class SelectionGeometryAdapter(ISelectionGeometry):
             if pv is None:
                 continue
 
-            # mm -> m, then coordsToOrigin (like LLPs)
+            # mm -> m, then cavernCentreToIP (like LLPs)
             try:
                 x_m, y_m, z_m = self._mm_to_m_xyz(pv)
                 X, Y, Z = self._coords_to_origin_if_possible(x_m, y_m, z_m)
@@ -328,7 +333,7 @@ class SelectionGeometryAdapter(ISelectionGeometry):
                 try:
                     px = float(row["px"]); py = float(row["py"]); pz = float(row["pz"])
                     p  = (px*px + py*py + pz*pz) ** 0.5
-                    # éviter divisions par 0
+                    # Avoid dividing by zero
                     num = max(p + pz, 1e-300); den = max(p - pz, 1e-300)
                     eta = 0.5 * float(np.log(num / den))
                     phi = float(np.arctan2(py, px))
@@ -356,7 +361,7 @@ class SelectionGeometryAdapter(ISelectionGeometry):
 
             if points is None:
                 points = []
-            # --- parité legacy : count the number of intersection, no unique station.
+            # --- Legacy Parity: count the number of intersections, no unique station.
             n_hits = len(points)
 
             if n_hits >= int(nIntersections):
@@ -376,7 +381,7 @@ class SelectionGeometryAdapter(ISelectionGeometry):
             if hasattr(self._g.geometry, "cavern"):
                 candidates.append(self._g.geometry.cavern)
         for obj in candidates:
-            cto = getattr(obj, "coordsToOrigin", None)
+            cto = getattr(obj, "cavernCentreToIP", None)
             if callable(cto):
                 return cto(x_m, y_m, z_m)
         return (x_m, y_m, z_m)

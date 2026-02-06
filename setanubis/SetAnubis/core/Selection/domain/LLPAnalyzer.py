@@ -24,7 +24,7 @@ class Schema:
     def ensure(df: pd.DataFrame) -> None:
         missing = [c for c in Schema.required if c not in df.columns]
         if missing:
-            raise ValueError(f"Colonnes manquantes dans df: {missing}")
+            raise ValueError(f"Columns missing in df: {missing}")
 
 
 class EventGraph:
@@ -92,7 +92,7 @@ class EventGraph:
         return self._nchildren.get((int(event), int(pidx)), 0)
 
 
-# Hunter (itarative DFS without recursion)
+# Hunter (iterative DFS without recursion)
 class ChildrenHunter:
     def __init__(self, graph: EventGraph, llp_pids):
         self.g = graph
@@ -121,6 +121,7 @@ class ChildrenHunter:
 
             child_pid = self.g.pid_of(event, child_idx)
 
+            # Skip identical LLP -> LLP
             skip_child = (
                 (child_pid in self.llp_pids) and
                 (parent_pid_cur in self.llp_pids) and
@@ -128,7 +129,6 @@ class ChildrenHunter:
                 (parent_nc_cur == 1)
             )
 
-            #LLP -> LLP
             if skip_child:
                 continue
 
@@ -150,7 +150,7 @@ class LLPAnalyzer:
         self.pt_min_cfg = dict(pt_min_cfg)
         self.graph = EventGraph(self.df)
 
-    # atomique selection.
+    # Atomic selections.
     def select_final_states(self) -> pd.DataFrame:
         return self.df[(self.df["nChildren"] == 0) & (self.df["status"] == 1)]
 
@@ -224,7 +224,7 @@ class LLPAnalyzer:
         fs_neutrinos = self.select_neutrinos(fs_no_llp)
         fs_no_llp_wo_nu = fs_no_llp[~fs_no_llp["PID"].isin([12, 14, 16, 18])]
 
-        charged = fs_no_llp_wo_nu[(fs_no_llp_wo_nu["charge"] != 0) & (fs_no_llp_wo_nu["charge"] != -0.555)]
+        charged = fs_no_llp_wo_nu[(fs_no_llp_wo_nu["charge"] != 0) & (fs_no_llp_wo_nu["charge"] != None)]
         charged = self.select_prompt(charged)
         charged = charged[charged["pt"] > float(self.pt_min_cfg.get("chargedTrack", 0.0))]
 

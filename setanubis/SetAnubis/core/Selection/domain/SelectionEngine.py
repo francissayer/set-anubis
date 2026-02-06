@@ -75,9 +75,9 @@ class MinThresholds:
 
 @dataclass(frozen=True)
 class MinDR:
-    jet: float = 0.4
-    chargedTrack: float = 0.4
-    neutralTrack: float = 0.4
+    jet: float = 0.5
+    chargedTrack: float = 0.5
+    neutralTrack: float = 0.5
 
 
 @dataclass(frozen=True)
@@ -95,8 +95,8 @@ class SelectionConfig:
     minDR: MinDR = field(default_factory=MinDR)
 
     nStations: int = 2            # For intersection with ANUBIS
-    nIntersections: int = 2       # FOr hits from desintegration product
-    nTracks: int = 1              # Number of required tracks
+    nIntersections: int = 2       # For hits from desintegration product
+    nTracks: int = 2              # Number of required tracks
     eachTrack: bool = False 
     RPCeff: float = 1.0           # RPC efficiency
     nRPCsPerLayer: int = 1
