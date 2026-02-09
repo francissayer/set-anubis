@@ -56,7 +56,7 @@ class JetDFBuilder:
 
     @staticmethod
     def __scale_phi(phi: np.ndarray) -> np.ndarray:
-        return ((phi + np.pi) % (2 * np.pi)) - np.pi %Scales phi to [-pi,pi]
+        return ((phi + np.pi) % (2 * np.pi)) - np.pi # Scales phi to [-pi,pi]
 
     @staticmethod
     def __to_eta(theta: np.ndarray) -> np.ndarray:
@@ -201,10 +201,16 @@ class JetDFBuilder:
 
             w = self._event_weight(cdf, ndf)
 
-            jpx = np.fromiter((j.px for j in jets), count=len(jets), dtype=float)
-            jpy = np.fromiter((j.py for j in jets), count=len(jets), dtype=float)
-            jpz = np.fromiter((j.pz for j in jets), count=len(jets), dtype=float)
-            jE  = np.fromiter((j.E  for j in jets), count=len(jets), dtype=float)
+            # jpx = np.fromiter((j.px for j in jets), count=len(jets), dtype=float)
+            # jpy = np.fromiter((j.py for j in jets), count=len(jets), dtype=float)
+            # jpz = np.fromiter((j.pz for j in jets), count=len(jets), dtype=float)
+            # jE  = np.fromiter((j.E  for j in jets), count=len(jets), dtype=float)
+
+            #PAUL check
+            jpx = ak.to_numpy(jets["px"])
+            jpy = ak.to_numpy(jets["py"])
+            jpz = ak.to_numpy(jets["pz"])
+            jE  = ak.to_numpy(jets["E"])
 
             _, jeta, jphi = self.__to_spherical_vec(jpx, jpy, jpz)
 

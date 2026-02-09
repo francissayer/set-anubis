@@ -1,5 +1,5 @@
 from SetAnubis.core.Selection.domain.SelectionEngine import SelectionEngine, SelectionConfig, RunConfig, MinThresholds, MinDR
-from write_and_load_selection_dict import load_bundle
+from SetAnubis.core.Selection.domain.DatasetSource import BundleIO
 from SetAnubis.core.Selection.adapters.input.SelectionGeometryAdapter import SelectionGeometryAdapter
 from SetAnubis.core.Geometry.adapters.selection_adapter import GeometrySelectionAdapter
 from SetAnubis.core.Geometry.domain.defineGeometry import ATLASCavern
@@ -15,7 +15,7 @@ import numpy as np
 
 if __name__ == "__main__":
     df = pd.read_csv("db_paul.csv")
-    SDFs_base = load_bundle("paul_dict.pkl.gz")
+    SDFs_base = BundleIO.load_bundle("paul_dict.pkl.gz")
 
     cfs = SDFs_base["chargedFinalStates"].copy()
     nfs = SDFs_base["neutralFinalStates"].copy()
