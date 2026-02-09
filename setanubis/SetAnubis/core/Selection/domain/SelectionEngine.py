@@ -173,92 +173,204 @@ class SelectionEngine:
         out["minDeltaR_Tracks"] = tracks_vals
         return out
 
-    def apply_selection(
+    def _run_core_pipeline(
         self,
         SDFs: Dict[str, pd.DataFrame],
         run_config: RunConfig,
         selection: SelectionConfig,
+        *,
+        do_met: bool = True,
     ) -> Dict[str, Any]:
+        """
+        Run the common LLP-level selection pipeline.
+        Returns intermediate frames needed by 2DV.
+        """
         pd.options.mode.chained_assignment = None
 
         cut_flow: Dict[str, float | int] = {}
         cut_indices: Dict[str, List[int]] = {}
 
         llps = SDFs["LLPs"]
-            
-        
         cut_flow["nLLP_original"] = len(llps.index)
         cut_flow["nLLP_original_weighted"] = float(llps["weight"].sum() if "weight" in llps.columns else 0.0)
 
-        # LLPs which decays
         step = self._select_decaying_llps(llps)
         cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
-        df = step["dataframe"]
-        print("_select_decaying_llps", step["cutFlow"])
-        
-        # Geometry selection (cavern/shaft)
+        df_decay = step["dataframe"]
+
         geo_mode = (selection.geometry.geoMode or "").lower()
         if "shaft" in geo_mode:
-            print("here")
-            step = self._select_in_shaft(df, selection, run_config)
+            step = self._select_in_shaft(df_decay, selection, run_config)
         elif (geo_mode == "") or ("ceiling" in geo_mode) or ("cavern" in geo_mode):
-            print("or here")
-            step = self._select_in_cavern(df, selection, run_config)
+            step = self._select_in_cavern(df_decay, selection, run_config)
         else:
             raise ValueError(f"Unknown geometry mode: {selection.geometry.geoMode}")
         cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
-        df = step["dataframe"]
-        print("_select_in_cavern ", step["cutFlow"])
-        
-        # OUtside ATLAS
-        step = self._select_not_in_atlas(df, selection, run_config)
-        cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
-        df = step["dataframe"]
-        print("_select_not_in_atlas ", step["cutFlow"])
-        
-        # Intersections ANUBIS (RPC nStations)
-        step = self._select_anubis_intersection(df, selection, run_config)
-        cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
-        df = step["dataframe"]
-        print("_select_anubis_intersection ", step["cutFlow"])
-        
-        # Tracking higs from desintegration product.
-        step = self._select_tracks(df, SDFs["LLPchildren"], selection, run_config)
-        cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
-        df = step["dataframe"]
-        print("_select_tracks ", step["cutFlow"])
-        
-        # 6) Minimal MET
-        step = self._select_met(df, selection)
-        cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
-        df = step["dataframe"]
-        print("_select_met : ", step["cutFlow"])
-        
-        # 7) Isolation
-        step = self._select_isolation(df, selection, SDFs)
-        cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
-        df = step["dataframe"]
+        df_in_geom = step["dataframe"]
 
-        # Final
+        step = self._select_not_in_atlas(df_in_geom, selection, run_config)
+        cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
+        df_not_atlas = step["dataframe"]
+
+        step = self._select_anubis_intersection(df_not_atlas, selection, run_config)
+        cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
+        df_inter = step["dataframe"]
+
+        step = self._select_tracks(df_inter, SDFs["LLPchildren"], selection, run_config)
+        cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
+        df_tracks = step["dataframe"]
+
+        df_after_met = df_tracks
+        if do_met:
+            step = self._select_met(df_tracks, selection)
+            cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
+            df_after_met = step["dataframe"]
+
+        step = self._select_isolation(df_after_met, selection, SDFs)
+        cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
+        df_iso = step["dataframe"]
+
+        pd.options.mode.chained_assignment = "warn"
+        return {
+            "cutFlow": cut_flow,
+            "cutIndices": cut_indices,
+            "df_iso": df_iso,
+            "df_in_geometry": df_in_geom,
+            "df_not_in_atlas": df_not_atlas,
+        }
+    
+    def apply_selection(self, SDFs, run_config, selection) -> Dict[str, Any]:
+        core = self._run_core_pipeline(SDFs, run_config, selection, do_met=True)
+        df = core["df_iso"]
+
+        cut_flow = core["cutFlow"]
+        cut_indices = core["cutIndices"]
+
         cut_flow["nLLP_Final"] = len(df.index)
         cut_flow["nLLP_Final_weighted"] = float(df["weight"].sum() if "weight" in df.columns else 0.0)
         cut_indices["nLLP_Final"] = df.index.tolist()
 
-        pd.options.mode.chained_assignment = "warn"
         return {"cutFlow": cut_flow, "cutIndices": cut_indices, "finalDF": df}
 
-    #TODO : 2dv case
-    def apply_selection_2dv(
-        self,
-        SDFs: Dict[str, pd.DataFrame],
-        run_config: "RunConfig",
-        selection: "SelectionConfig",
-    ) -> Dict[str, Any]:
-        """
-        Mode 2DV (placeholder)
-        """
-        #Simple id, use same apply_selection with flags
-        return self.apply_selection(SDFs, run_config, selection)
+    def apply_selection_2dv(self, SDFs, run_config, selection) -> Dict[str, Any]:
+        core = self._run_core_pipeline(SDFs, run_config, selection, do_met=False)
+
+        df_iso = core["df_iso"]
+        df_in_geom = core["df_in_geometry"]
+        df_not_atlas = core["df_not_in_atlas"]
+
+        cut_flow = core["cutFlow"]
+        cut_indices = core["cutIndices"]
+
+        in_atlas_idx = df_in_geom.index.difference(df_not_atlas.index)
+        llps_in_atlas = df_in_geom.loc[in_atlas_idx]
+
+        if df_iso.empty:
+            df_final = df_iso
+        else:
+            ev = "eventNumber"
+            counts = df_iso[ev].value_counts()
+            ev_2anubis = set(counts[counts >= 2].index.tolist())
+            ev_atlas = set(llps_in_atlas[ev].unique().tolist()) if not llps_in_atlas.empty else set()
+            keep_events = ev_2anubis.union(ev_atlas)
+            df_final = df_iso[df_iso[ev].isin(keep_events)]
+
+        cut_flow["nLLP_partners"] = len(df_final.index)
+        cut_flow["nLLP_partners_weighted"] = float(df_final["weight"].sum() if "weight" in df_final.columns else 0.0)
+        cut_indices["nLLP_partners"] = df_final.index.tolist()
+
+        cut_flow["nLLP_Final"] = len(df_final.index)
+        cut_flow["nLLP_Final_weighted"] = float(df_final["weight"].sum() if "weight" in df_final.columns else 0.0)
+        cut_indices["nLLP_Final"] = df_final.index.tolist()
+
+        return {"cutFlow": cut_flow, "cutIndices": cut_indices, "finalDF": df_final}
+
+    # def apply_selection(
+    #     self,
+    #     SDFs: Dict[str, pd.DataFrame],
+    #     run_config: RunConfig,
+    #     selection: SelectionConfig,
+    # ) -> Dict[str, Any]:
+    #     pd.options.mode.chained_assignment = None
+
+    #     cut_flow: Dict[str, float | int] = {}
+    #     cut_indices: Dict[str, List[int]] = {}
+
+    #     llps = SDFs["LLPs"]
+            
+        
+    #     cut_flow["nLLP_original"] = len(llps.index)
+    #     cut_flow["nLLP_original_weighted"] = float(llps["weight"].sum() if "weight" in llps.columns else 0.0)
+
+    #     # LLPs which decays
+    #     step = self._select_decaying_llps(llps)
+    #     cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
+    #     df = step["dataframe"]
+    #     print("_select_decaying_llps", step["cutFlow"])
+        
+    #     # Geometry selection (cavern/shaft)
+    #     geo_mode = (selection.geometry.geoMode or "").lower()
+    #     if "shaft" in geo_mode:
+    #         print("here")
+    #         step = self._select_in_shaft(df, selection, run_config)
+    #     elif (geo_mode == "") or ("ceiling" in geo_mode) or ("cavern" in geo_mode):
+    #         print("or here")
+    #         step = self._select_in_cavern(df, selection, run_config)
+    #     else:
+    #         raise ValueError(f"Unknown geometry mode: {selection.geometry.geoMode}")
+    #     cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
+    #     df = step["dataframe"]
+    #     print("_select_in_cavern ", step["cutFlow"])
+        
+    #     # OUtside ATLAS
+    #     step = self._select_not_in_atlas(df, selection, run_config)
+    #     cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
+    #     df = step["dataframe"]
+    #     print("_select_not_in_atlas ", step["cutFlow"])
+        
+    #     # Intersections ANUBIS (RPC nStations)
+    #     step = self._select_anubis_intersection(df, selection, run_config)
+    #     cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
+    #     df = step["dataframe"]
+    #     print("_select_anubis_intersection ", step["cutFlow"])
+        
+    #     # Tracking higs from desintegration product.
+    #     step = self._select_tracks(df, SDFs["LLPchildren"], selection, run_config)
+    #     cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
+    #     df = step["dataframe"]
+    #     print("_select_tracks ", step["cutFlow"])
+        
+    #     # 6) Minimal MET
+    #     step = self._select_met(df, selection)
+    #     cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
+    #     df = step["dataframe"]
+    #     print("_select_met : ", step["cutFlow"])
+        
+    #     # 7) Isolation
+    #     step = self._select_isolation(df, selection, SDFs)
+    #     cut_flow.update(step["cutFlow"]); cut_indices.update(step["cutIndices"])
+    #     df = step["dataframe"]
+
+    #     # Final
+    #     cut_flow["nLLP_Final"] = len(df.index)
+    #     cut_flow["nLLP_Final_weighted"] = float(df["weight"].sum() if "weight" in df.columns else 0.0)
+    #     cut_indices["nLLP_Final"] = df.index.tolist()
+
+    #     pd.options.mode.chained_assignment = "warn"
+    #     return {"cutFlow": cut_flow, "cutIndices": cut_indices, "finalDF": df}
+
+    # #TODO : 2dv case
+    # def apply_selection_2dv(
+    #     self,
+    #     SDFs: Dict[str, pd.DataFrame],
+    #     run_config: "RunConfig",
+    #     selection: "SelectionConfig",
+    # ) -> Dict[str, Any]:
+    #     """
+    #     Mode 2DV (placeholder)
+    #     """
+    #     #Simple id, use same apply_selection with flags
+    #     return self.apply_selection(SDFs, run_config, selection)
 
     @staticmethod
     def _vertex_col(base: str, run_config: RunConfig) -> str:

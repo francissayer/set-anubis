@@ -1,6 +1,7 @@
 import time
 from SetAnubis.core.Selection.domain.LLPAnalyzer import LLPAnalyzer
 import pandas as pd
+from SetAnubis.core.Selection.domain.DatasetSource import BundleIO
 
 if __name__ == "__main__":
     df = pd.read_csv("perfect_df.csv")
@@ -14,6 +15,7 @@ if __name__ == "__main__":
     out_opt = analyzer.create_sample_dataframes(LLPid)
     t3 = time.perf_counter()
     
+    BundleIO().save_bundle(out_opt, "ALP_Z_sampledfs_Scan_3_Run_5.pkl.gz")
     print(out_opt["LLPs"])
     print("time creation: ", t2-t1)
     print("time func: ", t3-t2)
