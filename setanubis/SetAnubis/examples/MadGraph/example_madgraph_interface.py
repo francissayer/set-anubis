@@ -14,7 +14,7 @@ if __name__ == "__main__":
     
     Everything concerning this interface is available in the ModelCore.exampleNeoSetAnubisInterface.py example.
     """
-    neo = SetAnubisInterface("db/HNL/UFO_HNL")
+    neo = SetAnubisInterface("Assets/UFO/UFO_HNL")
     
     """
     Configuration for the MagraphInterface (for writing cards). Few inputs are needed :

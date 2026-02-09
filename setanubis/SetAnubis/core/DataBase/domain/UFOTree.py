@@ -1,5 +1,4 @@
 import sympy as sp
-import graphviz
 from typing import Dict, List, Any, Optional, Set
 import copy
 
@@ -231,6 +230,7 @@ class ExpressionTree:
         Returns:
             graphviz.Digraph: Directed, labeled graph (name plus value or expression).
         """
+        import graphviz #coupling reduction
         dot = graphviz.Digraph(comment="Expression Tree")
 
         dependent_nodes = set()

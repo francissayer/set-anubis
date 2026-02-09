@@ -1,5 +1,6 @@
 from __future__ import annotations
-
+import matplotlib
+matplotlib.use('Tkagg')
 from dataclasses import dataclass, field
 from typing import Iterable, Protocol, Optional, Dict, List
 
@@ -343,8 +344,11 @@ if __name__ == "__main__":
     import os
     analyzer = MadGraphHepmcAnalyzer.from_file(os.path.join(os.path.dirname(__file__), "..", "..", "app", "TestFiles", "tag_1_pythia8_events.hepmc" ))
 
+    
+    
+    analyzer = MadGraphHepmcAnalyzer.from_file(os.path.join("tag_1_pythia8_events.hepmc" ))
     stats = analyzer.analyze(
-        pdg_id=35,
+        pdg_id=9000005,
         max_events=None,  
         status=None, 
         ignore_self_decays=True, 
