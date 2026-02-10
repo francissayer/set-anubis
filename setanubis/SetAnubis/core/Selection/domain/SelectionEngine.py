@@ -65,6 +65,31 @@ def sel_decay_hits(
         decayVertex=decayVertex,
     )
 
+# As ATLAS is centred on the IP and the coords from the simulation are assumed to also be centred on the IP do not need 
+#   to translate these in terms of the cavern centre coordinate system as these are all relative distances to the IP.
+def sel_outside_calo(row: pd.Series, 
+                     minRadius: float,
+                     absMaxZ: float, 
+                     barrelEta: float, 
+                     endCapEta: List[float], 
+                     decayVertex: str="decayVertex") -> bool:
+    if abs(row["eta"]) <barrelEta:
+        #Get the XY radius 
+        radius = np.sqrt(np.power(row[decayVertex][0],2) + np.power(row[decayVertex][1],2))
+        if radius > minRadius:
+            return True
+        else:
+            return False
+    elif (abs(row["eta"]) > endCapEta[0]) and (abs(row["eta"]) < endCapEta[1]):
+        #Get the z position
+        zPos = row[decayVertex][2]
+        if abs(zPos) > absMaxZ:
+            return True
+        else:
+            return False
+    else:
+        return False
+
 @dataclass(frozen=True)
 class MinThresholds:
     LLP: float = 0.0
@@ -263,7 +288,8 @@ class SelectionEngine:
         cut_indices = core["cutIndices"]
 
         in_atlas_idx = df_in_geom.index.difference(df_not_atlas.index)
-        llps_in_atlas = df_in_geom.loc[in_atlas_idx]
+        #llps_in_atlas = df_in_geom.loc[in_atlas_idx]
+        llps_in_atlas = self._select_displaced_LLPs_in_ATLAS(df_in_geom.loc[in_atlas_idx], selection, run_config)
 
         if df_iso.empty:
             df_final = df_iso
@@ -583,4 +609,19 @@ class SelectionEngine:
             "cutIndices": cutIndices,
             "additionalDataframes": {"IsoCharged": iso_ch, "IsoJets": iso_jets},
         }
-        
+
+    @staticmethod
+    def _select_displaced_LLPs_in_ATLAS(df: pd.DataFrame, selection: "SelectionConfig", run_cfg: RunConfig) -> pd.DataFrame:
+        decay_col = _vertex_col_in_df(df, "decayVertex", run_cfg)
+        # We want to ensure that the LLPs in ATLAS can be reconstructed well with minimal background and so we require that the LLPs decay beyond the calorimeter
+        # Including a pseudorapidity cut that cuts out the transition region and aligns with the definitions in https://arxiv.org/pdf/1811.07370 (Table 3 on Pg 14)
+        minRadius = 4000  #mm https://cds.cern.ch/record/2285580/files/ATLAS-TDR-026.pdf Figure 1.1 for edge of calo in barrel 
+        absMaxZ = 7000 # mm https://cds.cern.ch/record/2285580/files/ATLAS-TDR-026.pdf Figure 1.1 for edge of calo in endcap
+
+        mask = df.apply(
+            sel_outside_calo,
+            axis=1,
+            args=(minRadius, absMaxZ, 0.7, [1.3,2.5], decay_col),
+        )
+        return df[mask]
+
