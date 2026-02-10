@@ -7,7 +7,7 @@ if __name__ == "__main__":
     """
     Paramater use to choose if we want to produce the card only (True) or run madgraph on docker.
     """
-    dry_run = True
+    dry_run = False
     
     """
     General interface of the neo-set-anubis pipeline. Need the path to the UFO as an input.
@@ -15,7 +15,7 @@ if __name__ == "__main__":
     Everything concerning this interface is available in the ModelCore.exampleNeoSetAnubisInterface.py example.
     """
     neo = SetAnubisInterface("Assets/UFO/UFO_HNL")
-    
+    print(neo.get_all_parameters())
     """
     Configuration for the MagraphInterface (for writing cards). Few inputs are needed :
     
@@ -87,7 +87,10 @@ if __name__ == "__main__":
     print("------------------------------------------------------------------------------------------")
     
     if not dry_run:
+        from SetAnubis.core.MadGraph.adapters.output.MadGraphDockerRunner import MadGraphDockerRunner
+        madgraph_runner = MadGraphDockerRunner()
         mg = MadgraphInterface(
+            madgraph_runner=madgraph_runner,
             jobscript_str=jobscript_str,
             param_card_str=param_card,
             run_card_str=runcard_str,
