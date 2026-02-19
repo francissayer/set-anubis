@@ -33,7 +33,7 @@ from matplotlib.ticker import LogLocator
 # ============================================================================
 DEFAULT_DATA_PATH = '/usera/fs568/set-anubis/ALP_Z_Runs'
 DEFAULT_OUTPUT_DIR = '/usera/fs568/set-anubis/setanubis'
-DEFAULT_CAPHI = 0.0001  # 10^-3 coupling
+DEFAULT_CAPHI = 0.001  # 10^-3 coupling
 
 # Reference distances for visualization
 ATLAS_TRACKING_RADIUS = 9.5  # meters - typical scale of ATLAS inner detector
@@ -409,6 +409,34 @@ def plot_statistics_vs_mass(data_dict_list, output_dir, caphi):
     
     plt.tight_layout()
     
+    # --- draw kinematic thresholds (if UFO model available) ---
+    try:
+        from SetAnubis.core.ModelCore.adapters.input.SetAnubisInteface import SetAnubisInterface
+        CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+        UFO_PATH = os.path.join(CURRENT_DIR, '..', 'Assets', 'UFO', 'ALP_linear_UFO_WIDTH')
+        sa = SetAnubisInterface(UFO_PATH)
+        threshold_params = ['Me', 'MMU', 'MTA', 'MU', 'MD', 'MC', 'MS', 'MB', 'MW', 'MZ', 'MT']
+        thresholds = {}
+        for p in threshold_params:
+            try:
+                pv = sa.get_parameter_value(p)
+                val = float(pv.real) if hasattr(pv, 'real') else float(pv)
+                thresholds[p] = 2.0 * val
+            except Exception:
+                pass
+
+        param_label = {'Me':'e', 'MMU':'mu', 'MTA':'tau', 'MU':'u', 'MD':'d', 'MC':'c', 'MS':'s', 'MB':'b', 'MW':'W', 'MZ':'Z', 'MT':'t'}
+        ax = plt.gca()
+        ymin, ymax = ax.get_ylim()
+        for pname, thr in thresholds.items():
+            if thr >= masses.min() and thr <= masses.max():
+                ax.axvline(thr, color='gray', linestyle='--', alpha=0.6)
+                lab = param_label.get(pname, pname)
+                ax.text(thr * 1.001, ymax * 0.9, f"2*{lab}", rotation=90, color='gray', fontsize=8, va='top', ha='left')
+    except Exception:
+        # If SetAnubis or UFO not available, skip thresholds silently
+        pass
+
     output_path = os.path.join(output_dir, 'alp_distance_ip_vs_mass.pdf')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Saved statistics vs mass to: {output_path}")

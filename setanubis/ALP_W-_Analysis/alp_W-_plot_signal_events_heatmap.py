@@ -2,7 +2,7 @@
 Plot heat map of expected signal events vs mass and coupling CaPhi.
 
 CORRECTED SIGNAL CALCULATION:
-    N_signal = L_int × σ(pp→Z+ALP) × ε_acceptance × ε_selection × BR(Z→visible) × BR(ALP→visible)
+    N_signal = L_int × σ(pp→W-+ALP) × ε_acceptance × ε_selection × BR(W→visible) × BR(ALP→visible)
 
 WHERE:
     - L_int: Integrated luminosity (default: 3000 fb⁻¹ for HL-LHC)
@@ -28,7 +28,7 @@ from pathlib import Path
 import glob
 
 
-def extract_cross_section_from_banner(scan, run, runs_base_path='/usera/fs568/set-anubis/ALP_Z_Runs'):
+def extract_cross_section_from_banner(scan, run, runs_base_path='/usera/fs568/set-anubis/ALP_W-_Runs'):
     """Extract cross-section from MadGraph scan_run text file.
     
     Parameters:
@@ -45,7 +45,7 @@ def extract_cross_section_from_banner(scan, run, runs_base_path='/usera/fs568/se
     float or None
         Cross-section in pb, or None if not found
     """
-    scan_dir = f'ALP_axZ_scan_{scan}'
+    scan_dir = f'ALP_axW-_scan_{scan}'
     events_dir = os.path.join(runs_base_path, scan_dir, 'Events')
     
     # Find the scan_run file (could be scan_run_0[1-5].txt, scan_run_01[-]run_01.txt, etc.)
@@ -91,7 +91,7 @@ def load_cutflow_data(csv_path):
     return df
 
 
-def calculate_signal_events(df, integrated_lumi=3000, selection_eff=0.5, br_z_visible=0.8, br_alp_visible=1.0, runs_base_path='/usera/fs568/set-anubis/ALP_Z_Runs'):
+def calculate_signal_events(df, integrated_lumi=3000, selection_eff=0.5, br_z_visible=0.8, br_alp_visible=1.0, runs_base_path='/usera/fs568/set-anubis/ALP_W-_Runs'):
     """Calculate N_signal = L_int × σ × ε_acceptance × ε_selection × BR_Z × BR_ALP for each point.
     
     Extracts cross-sections from MadGraph scan_run text files and calculates acceptance
@@ -383,14 +383,14 @@ Signal event calculation:
     parser.add_argument(
         '--csv', 
         type=str, 
-        default='/usera/fs568/set-anubis/setanubis/selection_cutflow_data.csv',
+        default='/usera/fs568/set-anubis/setanubis/selection_cutflow_data_Wminus.csv',
         help='Path to cutflow CSV file'
     )
     parser.add_argument(
         '--runs-path',
         type=str,
-        default='/usera/fs568/set-anubis/ALP_Z_Runs',
-        help='Base path to ALP_Z_Runs directory with scan_run files'
+        default='/usera/fs568/set-anubis/ALP_W-_Runs',
+        help='Base path to ALP_W-_Runs directory with scan_run files'
     )
     parser.add_argument(
         '--output-dir',
@@ -495,8 +495,8 @@ Signal event calculation:
     # 1. Signal events heatmap
     plot_heatmap(
         mass_vals, caphi_vals, heatmap_signal,
-        os.path.join(args.output_dir, 'signal_events_heatmap.png'),
-        title=f'Expected Signal Events (L={args.luminosity} fb⁻¹)',
+        os.path.join(args.output_dir, 'signal_events_heatmap_Wminus.png'),
+        title=f'Expected Signal Events (pp → W- + ALP, L={args.luminosity} fb⁻¹)',
         use_log_scale=args.log_scale,
         colorbar_label='Expected Signal Events'
     )
@@ -504,8 +504,8 @@ Signal event calculation:
     # 2. Acceptance heatmap
     plot_heatmap(
         mass_vals, caphi_vals, heatmap_acceptance,
-        os.path.join(args.output_dir, 'acceptance_heatmap.png'),
-        title='Geometrical and Kinematic Acceptance',
+        os.path.join(args.output_dir, 'acceptance_heatmap_Wminus.png'),
+        title='Geometrical and Kinematic Acceptance (pp → W- + ALP)',
         use_log_scale=True,
         colorbar_label='Acceptance ε'
     )
@@ -513,8 +513,8 @@ Signal event calculation:
     # 3. Cross-section heatmap
     plot_heatmap(
         mass_vals, caphi_vals, heatmap_xsec,
-        os.path.join(args.output_dir, 'cross_section_heatmap.png'),
-        title='Production Cross-Section (pp → Z + ALP)',
+        os.path.join(args.output_dir, 'cross_section_heatmap_Wminus.png'),
+        title='Production Cross-Section (pp → W- + ALP)',
         use_log_scale=True,
         colorbar_label='Cross-section (pb)'
     )
