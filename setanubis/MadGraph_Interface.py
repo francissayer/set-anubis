@@ -63,12 +63,12 @@ if __name__ == "__main__":
     # Include all possible final states - but don't include kinematically forbidden decays as MadSpin will error out
     builder_madspin.add_decay("decay ax > e- e+")       # 2m_e = 1.022e-3 GeV
     builder_madspin.add_decay("decay ax > mu- mu+")     # 2m_mu = 0.21132 GeV
-    #builder_madspin.add_decay("decay ax > ta- ta+")     # 2m_tau = 3.554 GeV
+    builder_madspin.add_decay("decay ax > ta- ta+")     # 2m_tau = 3.554 GeV
     builder_madspin.add_decay("decay ax > u u~")        # 2m_u = 5.1e-3 GeV
     builder_madspin.add_decay("decay ax > d d~")        # 2m_d = 1.008e-2 GeV
     builder_madspin.add_decay("decay ax > s s~")        # 2m_s = 0.202 GeV
-    #builder_madspin.add_decay("decay ax > c c~")        # 2m_c = 2.54 GeV
-    #builder_madspin.add_decay("decay ax > b b~")        # 2m_b = 9.4 GeV
+    builder_madspin.add_decay("decay ax > c c~")        # 2m_c = 2.54 GeV
+    builder_madspin.add_decay("decay ax > b b~")        # 2m_b = 9.4 GeV
     #builder_madspin.add_decay("decay ax > t t~")        # 2m_t = 346.6 GeV
     madspin_str = builder_madspin.serialize()
     
@@ -76,13 +76,13 @@ if __name__ == "__main__":
 
     
     jobcard = card_interface.josbscript_builder
-    jobcard.add_process("generate p p > ax Z")
-    jobcard.set_output_launch("ALP_axZ_scan_32")
+    jobcard.add_process("generate p p > ax W-")
+    jobcard.set_output_launch("ALP_axW-_scan_7")
     jobcard.configure_cards()
     jobcard.add_auto_width("WALP")  # Automatically compute ALP width from decay formulas
-    jobcard.add_parameter_scan("Ma", "[0.214,0.219,0.224,0.229,0.234,0.240,0.245,0.251,0.257,0.263,0.269,0.275,0.282,0.288,0.295,0.302,0.309]")      # ALP mass in GeV
+    jobcard.add_parameter_scan("Ma", "[31.6]")      # ALP mass in GeV
     jobcard.add_parameter_scan("fa", "[1000]")     # ALP decay constant in GeV
-    jobcard.add_parameter_scan("CaPhi", "[0.001]")   # Universal ALP-fermion coupling
+    jobcard.add_parameter_scan("CaPhi", "[0.00001,0.000000316]")   # Universal ALP-fermion coupling
     jobcard.add_parameter_scan("CGtil", "[0.0]")   # ALP-Gluon coupling
     jobcard.add_parameter_scan("CWtil", "[0.0]")   # ALP-W coupling
     jobcard.add_parameter_scan("CBtil", "[0.0]")   # ALP-B coupling

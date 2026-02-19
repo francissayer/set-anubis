@@ -5,7 +5,7 @@ from SetAnubis.core.ModelCore.adapters.input.SetAnubisInteface import SetAnubisI
 from SetAnubis.core.Selection.domain.HepMCFrameBuilder import HepmcFrameBuilder, HepmcFrameOptions
 
 
-HEPMC_FILE = ("/usera/fs568/set-anubis/ALP_Z_Runs/ALP_axZ_scan_32/Events/run_17_decayed_1/tag_1_pythia8_events.hepmc.gz")
+HEPMC_FILE = ("/usera/fs568/set-anubis/ALP_W+_Runs/ALP_axW+_scan_7/Events/run_02_decayed_1/tag_1_pythia8_events.hepmc.gz")
 
 
 UFO_PATH = os.path.abspath("/usera/fs568/set-anubis/Assets/UFO/ALP_linear_UFO_WIDTH")
@@ -25,4 +25,4 @@ if __name__ == "__main__":
     with pyhepmc.open(HEPMC_FILE) as stream:
         df, unknown = builder.build_from_events(stream)
         
-        df.to_pickle("ALP_Z_df_Scan_32_Run_17.pkl")
+        df.to_pickle("ALP_W+_df_Scan_7_Run_2.pkl")

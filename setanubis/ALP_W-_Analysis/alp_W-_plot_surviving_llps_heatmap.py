@@ -1,7 +1,7 @@
 """
 Plot heat map of surviving LLPs vs mass and coupling CaPhi.
 
-This script reads the selection_cutflow_data.csv file and creates a 2D heat map
+    This script reads the selection_cutflow_data_Wminus.csv file and creates a 2D heat map
 showing the number of surviving LLPs after all selection cuts as a function of
 the ALP mass and CaPhi coupling parameter.
 """
@@ -248,20 +248,20 @@ def plot_multiple_views(mass_vals, caphi_vals, heatmap_data, heatmap_weighted, o
     
     # 1. Unweighted counts with log scale
     plot_heatmap(mass_vals, caphi_vals, heatmap_data,
-                os.path.join(output_dir, 'surviving_llps_heatmap.png'),
-                title='Surviving LLPs vs Mass and Coupling',
+                os.path.join(output_dir, 'surviving_llps_heatmap_Wminus.png'),
+                title='Surviving LLPs vs Mass and Coupling (pp → W- + ALP)',
                 use_log_scale=False, use_weighted=False)
     
     # 2. Weighted counts with log scale
     plot_heatmap(mass_vals, caphi_vals, heatmap_weighted,
-                os.path.join(output_dir, 'surviving_llps_heatmap_weighted_log.png'),
-                title='Surviving LLPs (Weighted) vs Mass and Coupling',
+                os.path.join(output_dir, 'surviving_llps_heatmap_weighted_log_Wminus.png'),
+                title='Surviving LLPs (Weighted) vs Mass and Coupling (pp → W- + ALP)',
                 use_log_scale=True, use_weighted=True)
     
     # 3. Weighted counts with linear scale
     plot_heatmap(mass_vals, caphi_vals, heatmap_weighted,
-                os.path.join(output_dir, 'surviving_llps_heatmap_weighted_linear.png'),
-                title='Surviving LLPs (Weighted) vs Mass and Coupling',
+                os.path.join(output_dir, 'surviving_llps_heatmap_weighted_linear_Wminus.png'),
+                title='Surviving LLPs (Weighted) vs Mass and Coupling (pp → W- + ALP)',
                 use_log_scale=False, use_weighted=True)
     
     # 4. Create a plot showing survival efficiency (surviving / original)
@@ -280,8 +280,8 @@ def plot_multiple_views(mass_vals, caphi_vals, heatmap_data, heatmap_weighted, o
                     efficiency_data[i, j] = 0
     
     plot_heatmap(mass_vals, caphi_vals, efficiency_data,
-                os.path.join(output_dir, 'surviving_llps_efficiency.png'),
-                title='LLP Selection Efficiency vs Mass and Coupling',
+                os.path.join(output_dir, 'surviving_llps_efficiency_Wminus.png'),
+                title='LLP Selection Efficiency vs Mass and Coupling (pp → W- + ALP)',
                 use_log_scale=True, use_weighted=False)
 
 
@@ -292,7 +292,7 @@ def main():
     parser.add_argument(
         '--csv', 
         type=str, 
-        default='/usera/fs568/set-anubis/setanubis/selection_cutflow_data.csv',
+        default='/usera/fs568/set-anubis/setanubis/selection_cutflow_data_Wminus.csv',
         help='Path to cutflow CSV file'
     )
     parser.add_argument(
