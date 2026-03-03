@@ -57,32 +57,45 @@ if __name__ == "__main__":
 
     runcard_editor = card_interface.run_card_builder
     runcard_editor.set("nevents", 2000)
+    #############################################################################################
+    # # I've added this to use LHAPDF for PDFs in MadGraph (change ID to desired set)
+    # runcard_editor.set("pdlabel", "lhapdf")
+    # runcard_editor.set("lhaid", 331100)  # example: replace 306000 with your LHAPDF numeric ID
+    #############################################################################################
     runcard_str = runcard_editor.serialize()
 
     builder_madspin = card_interface.madspin_builder
     # Include all possible final states - but don't include kinematically forbidden decays as MadSpin will error out
-    builder_madspin.add_decay("decay ax > e- e+")       # 2m_e = 1.022e-3 GeV
-    builder_madspin.add_decay("decay ax > mu- mu+")     # 2m_mu = 0.21132 GeV
-    builder_madspin.add_decay("decay ax > ta- ta+")     # 2m_tau = 3.554 GeV
-    builder_madspin.add_decay("decay ax > u u~")        # 2m_u = 5.1e-3 GeV
-    builder_madspin.add_decay("decay ax > d d~")        # 2m_d = 1.008e-2 GeV
-    builder_madspin.add_decay("decay ax > s s~")        # 2m_s = 0.202 GeV
-    builder_madspin.add_decay("decay ax > c c~")        # 2m_c = 2.54 GeV
-    builder_madspin.add_decay("decay ax > b b~")        # 2m_b = 9.4 GeV
+    #builder_madspin.add_decay("decay ax > e- e+")       # 2m_e = 1.022e-3 GeV
+    #builder_madspin.add_decay("decay ax > mu- mu+")     # 2m_mu = 0.21132 GeV
+    #builder_madspin.add_decay("decay ax > ta- ta+")     # 2m_tau = 3.554 GeV
+    #builder_madspin.add_decay("decay ax > u u~")        # 2m_u = 5.1e-3 GeV
+    #builder_madspin.add_decay("decay ax > d d~")        # 2m_d = 1.008e-2 GeV
+    #builder_madspin.add_decay("decay ax > s s~")        # 2m_s = 0.202 GeV
+    #builder_madspin.add_decay("decay ax > c c~")        # 2m_c = 2.54 GeV
+    #builder_madspin.add_decay("decay ax > b b~")        # 2m_b = 9.4 GeV
     #builder_madspin.add_decay("decay ax > t t~")        # 2m_t = 346.6 GeV
+    builder_madspin.add_decay("decay ax > ll ll")
+    builder_madspin.add_decay("decay ax > qq qq") 
     madspin_str = builder_madspin.serialize()
     
     pythia_str = card_interface.pythia_builder.serialize()
+    #############################################################################################
+    # # I've added this to ensure Pythia uses the same LHAPDF set (prepend these lines if not present)
+    # pythia_pdf_header = "PDF:useLHAPDF = on\nPDF:LHAPDFset = NNPDF40_nnlo_as_01180\n"
+    # if 'PDF:useLHAPDF' not in pythia_str:
+    #     pythia_str = pythia_pdf_header + pythia_str
+    #############################################################################################
 
     
     jobcard = card_interface.josbscript_builder
-    jobcard.add_process("generate p p > ax W-")
-    jobcard.set_output_launch("ALP_axW-_scan_7")
+    jobcard.add_process("define ll = e- e+ mu- mu+ ta- ta+ \n define qq = u u~ d d~ s s~ c c~ b b~ t t~ \n define p = g u c d s b t u~ c~ d~ s~ b~ t~ \n generate p p > ax Z")
+    jobcard.set_output_launch("ALP_axZTest2_scan_1")
     jobcard.configure_cards()
     jobcard.add_auto_width("WALP")  # Automatically compute ALP width from decay formulas
-    jobcard.add_parameter_scan("Ma", "[31.6]")      # ALP mass in GeV
+    jobcard.add_parameter_scan("Ma", "[0.1]")      # ALP mass in GeV
     jobcard.add_parameter_scan("fa", "[1000]")     # ALP decay constant in GeV
-    jobcard.add_parameter_scan("CaPhi", "[0.00001,0.000000316]")   # Universal ALP-fermion coupling
+    jobcard.add_parameter_scan("CaPhi", "[0.1]")   # Universal ALP-fermion coupling
     jobcard.add_parameter_scan("CGtil", "[0.0]")   # ALP-Gluon coupling
     jobcard.add_parameter_scan("CWtil", "[0.0]")   # ALP-W coupling
     jobcard.add_parameter_scan("CBtil", "[0.0]")   # ALP-B coupling

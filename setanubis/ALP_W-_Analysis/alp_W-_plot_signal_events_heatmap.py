@@ -2,18 +2,20 @@
 Plot heat map of expected signal events vs mass and coupling CaPhi.
 
 CORRECTED SIGNAL CALCULATION:
-    N_signal = L_int × σ(pp→W-+ALP) × ε_acceptance × ε_selection × BR(W→visible) × BR(ALP→visible)
+    N_signal = L_int × σ(pp→W- + ALP) × ε_acceptance × ε_selection × BR(W→visible)
 
 WHERE:
     - L_int: Integrated luminosity (default: 3000 fb⁻¹ for HL-LHC)
-    - σ(pp→Z+ALP): Cross-section from MadGraph scan_run text files ('cross' column)
+    - σ(pp→W- + ALP): Cross-section from MadGraph scan_run text files ('cross' column)
     - ε_acceptance: Geometric/kinematic acceptance = nLLP_Final / nLLP_original
     - ε_selection: Selection efficiency (default: 0.5 = 50%)
-    - BR(Z→visible): Z branching ratio to visible final states (default: 0.8)
-    - BR(ALP→visible): ALP branching ratio to visible (default: 1.0 for fermion-coupled)
+    - BR(W→visible): W branching ratio to visible final states (default: 1.0 here)
 
 This script extracts the actual cross-section from MadGraph scan_run files rather than
-making assumptions about event weights.
+making assumptions about event weights. The selection acceptance calculation already
+reflects whether decay products are reconstructible; `BR(W→visible)` is set to 1
+to avoid double-counting unless you explicitly want to apply an external branching
+fraction.
 """
 
 import os
@@ -91,8 +93,8 @@ def load_cutflow_data(csv_path):
     return df
 
 
-def calculate_signal_events(df, integrated_lumi=3000, selection_eff=0.5, br_z_visible=0.8, br_alp_visible=1.0, runs_base_path='/usera/fs568/set-anubis/ALP_W-_Runs'):
-    """Calculate N_signal = L_int × σ × ε_acceptance × ε_selection × BR_Z × BR_ALP for each point.
+def calculate_signal_events(df, integrated_lumi=3000, selection_eff=0.5, br_w_visible=1.0, runs_base_path='/usera/fs568/set-anubis/ALP_W-_Runs'):
+    """Calculate N_signal = L_int × σ × ε_acceptance × ε_selection × BR_W for each point.
     
     Extracts cross-sections from MadGraph scan_run text files and calculates acceptance
     from unweighted event counts.
@@ -113,13 +115,12 @@ def calculate_signal_events(df, integrated_lumi=3000, selection_eff=0.5, br_z_vi
         if xsec is not None:
             df_result.at[idx, 'cross_section_pb'] = xsec
     
-    # Calculate signal events: N = L × σ × ε_acceptance × ε_selection × BR_Z × BR_ALP
+    # Calculate signal events: N = L × σ × ε_acceptance × ε_selection × BR_W
     df_result['N_signal'] = (lumi_pb * 
                              df_result['cross_section_pb'] * 
                              df_result['acceptance'] * 
                              selection_eff *
-                             br_z_visible * 
-                             br_alp_visible)
+                             br_w_visible)
     
     # Print progress
     for _, row in df_result.iterrows():
@@ -411,17 +412,12 @@ Signal event calculation:
         help='Selection efficiency (default: 0.5 = 50%%)'
     )
     parser.add_argument(
-        '--br-z-visible',
-        type=float,
-        default=0.8,
-        help='Branching ratio of Z to visible final states (default: 0.8)'
-    )
-    parser.add_argument(
-        '--br-alp-visible',
+        '--br-w-visible',
         type=float,
         default=1.0,
-        help='Branching ratio of ALP to visible final states (default: 1.0 for fermion-coupled)'
+        help='Branching ratio of W to visible final states (default: 1.0)'
     )
+    # ALP visible branching ratio intentionally omitted — acceptance accounts for visible decays
     parser.add_argument(
         '--log-scale',
         action='store_true',
@@ -448,16 +444,14 @@ Signal event calculation:
     print("="*70)
     print(f"Integrated luminosity: {args.luminosity} fb^-1")
     print(f"Selection efficiency: {args.selection_eff} ({args.selection_eff*100:.0f}%)")
-    print(f"BR(Z→visible): {args.br_z_visible}")
-    print(f"BR(ALP→visible): {args.br_alp_visible}")
+    print(f"BR(W→visible): {args.br_w_visible}")
     print()
     
     df_with_signals = calculate_signal_events(
         df, 
         integrated_lumi=args.luminosity,
         selection_eff=args.selection_eff,
-        br_z_visible=args.br_z_visible,
-        br_alp_visible=args.br_alp_visible,
+        br_w_visible=args.br_w_visible,
         runs_base_path=args.runs_path
     )
     

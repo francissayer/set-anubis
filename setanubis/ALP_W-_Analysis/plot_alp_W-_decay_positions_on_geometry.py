@@ -21,7 +21,7 @@ import sys
 # ============================================================================
 # DEFAULT PARAMETERS
 # ============================================================================
-DEFAULT_DATA_PATH = '/usera/fs568/set-anubis/ALP_Z_Runs'
+DEFAULT_DATA_PATH = '/usera/fs568/set-anubis/ALP_W-_Runs'
 DEFAULT_OUTPUT_DIR = '/usera/fs568/set-anubis/setanubis'
 DEFAULT_CAPHI = 0.001  # 10^-3 coupling
 
@@ -66,7 +66,7 @@ def find_available_data_by_caphi(data_path, caphi_target):
     """
     data_info = []
     
-    scan_dirs = sorted(glob.glob(os.path.join(data_path, 'ALP_axZ_scan_*')))
+    scan_dirs = sorted(glob.glob(os.path.join(data_path, 'ALP_axW-_scan_*')))
     
     for scan_dir in scan_dirs:
         scan_name = os.path.basename(scan_dir)
@@ -103,7 +103,7 @@ def find_available_data_by_caphi(data_path, caphi_target):
             # Check if this matches our target CaPhi (with small tolerance)
             if abs(caphi - caphi_target) < 1e-6:
                 # Check if pickle file exists
-                pkl_file = os.path.join(data_path, f'ALP_Z_df_Scan_{scan_num}_Run_{run_num}.pkl')
+                pkl_file = os.path.join(data_path, f'ALP_W-_df_Scan_{scan_num}_Run_{run_num}.pkl')
                 if os.path.exists(pkl_file):
                     data_info.append((scan_num, run_num, pkl_file, ma, caphi))
                     print(f"  Found Scan {scan_num}, Run {run_num}: mass = {ma:.4f} GeV, CaPhi = {caphi}")
@@ -215,8 +215,8 @@ def plot_geometry_with_decays_xy(plotter, decay_data_list, output_path, caphi):
         axes[i].axis('off')
     
     caphi_str = f"{caphi:.6f}" if caphi < 0.01 else f"{caphi:.3f}"
-    fig.suptitle(f'ALP Decay Positions - XY View ($C_{{a\\phi}}$ = {caphi_str})', fontsize=16, y=0.995)
-    plt.tight_layout()
+    fig.suptitle(f'ALP Decay Positions - XY View (W- associated production, $C_{{a\\phi}}$ = {caphi_str})', fontsize=16, y=0.98)
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Saved XY plot to: {output_path}")
     plt.close()
@@ -263,8 +263,8 @@ def plot_geometry_with_decays_xz(plotter, decay_data_list, output_path, caphi):
         axes[i].axis('off')
     
     caphi_str = f"{caphi:.6f}" if caphi < 0.01 else f"{caphi:.3f}"
-    fig.suptitle(f'ALP Decay Positions - XZ View ($C_{{a\\phi}}$ = {caphi_str})', fontsize=16, y=0.995)
-    plt.tight_layout()
+    fig.suptitle(f'ALP Decay Positions - XZ View (W- associated production, $C_{{a\\phi}}$ = {caphi_str})', fontsize=16, y=0.98)
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Saved XZ plot to: {output_path}")
     plt.close()
@@ -311,8 +311,8 @@ def plot_geometry_with_decays_zy(plotter, decay_data_list, output_path, caphi):
         axes[i].axis('off')
     
     caphi_str = f"{caphi:.6f}" if caphi < 0.01 else f"{caphi:.3f}"
-    fig.suptitle(f'ALP Decay Positions - ZY View ($C_{{a\\phi}}$ = {caphi_str})', fontsize=16, y=0.995)
-    plt.tight_layout()
+    fig.suptitle(f'ALP Decay Positions - ZY View (W- associated production, $C_{{a\\phi}}$ = {caphi_str})', fontsize=16, y=0.98)
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Saved ZY plot to: {output_path}")
     plt.close()
@@ -341,30 +341,19 @@ def main():
     from SetAnubis.core.Geometry.adapters.plot_matplotlib import MatplotlibGeometryPlotter
     
     cav = ATLASCavern()
-    
-    # Set plotting attributes that are expected by plotCavernXY/XZ/ZY methods
-    cav.cavernColour = 'black'
-    cav.cavernLS = '-'
-    cav.pointMargin = 0.5
-    cav.additionalAnnotation = False
-    cav.annotationSize = 10
-    cav.includeCavernCentreText = False
-    cav.includeCoCText = False
-    cav.includeATLASlimit = True
-    cav.includeCavernYinZY = False
-    cav.ATLAScolour = 'blue'
-    cav.ATLASls = '--'
-    cav.shaftLS = {'PX14': '--', 'PX16': '--'}
-    cav.shaftColour = {'PX14': 'gray', 'PX16': 'gray'}
-    
-    # Set CavernTrench (floor depression) if not defined
-    # Use same X/Z bounds as cavern, Y starts below floor
-    cav.CavernTrench = {
-        'X': [cav.CavernX[0], cav.CavernX[1]],
-        'Y': [cav.CavernY[0] - 2, cav.CavernY[0]],  # 2m trench below floor
-        'Z': [cav.CavernZ[0], cav.CavernZ[1]]
-    }
-    
+
+    # Use the new default plotting setup from ATLASCavern (as in test_plot.py)
+    # Create simple RPCs and set the IP as the position origin so simulation
+    # coordinates (which are IP-relative) map correctly to the cavern frame.
+    try:
+        cav.createSimpleRPCs([cav.archRadius-0.2, cav.archRadius-1.2], RPCthickness=0.06)
+        cav.RPCMaxRadius = cav.archRadius-1.2-0.5
+    except Exception:
+        # If createSimpleRPCs is not available, continue — plotting still works.
+        pass
+
+    cav.posOrigin = [cav.IP["x"], cav.IP["y"], cav.IP["z"]]
+
     plotter = MatplotlibGeometryPlotter(cav)
     
     caphi_str = f"{args.caphi:.6f}" if args.caphi < 0.01 else f"{args.caphi:.3f}"
@@ -388,7 +377,9 @@ def main():
     decay_data_list = []
     for scan_num, run_num, filepath, mass, caphi in data_info:
         print(f"  Loading Scan {scan_num}, Run {run_num} (mass = {mass:.4f} GeV)...")
-        data_dict = load_alp_decay_positions(filepath, max_decays=args.max_decays, ip_offset=cav.IP)
+        # Simulation positions are IP-relative in mm; convert to cavern-centre meters
+        ip_offset = {"x": cav.posOrigin[0], "y": cav.posOrigin[1], "z": cav.posOrigin[2]}
+        data_dict = load_alp_decay_positions(filepath, max_decays=args.max_decays, ip_offset=ip_offset)
         print(f"    Total: {data_dict['n_total']}, Decayed: {data_dict['n_decayed']}, "
               f"Plotted: {data_dict['n_plotted']}")
         decay_data_list.append(data_dict)
@@ -400,15 +391,15 @@ def main():
     print("\nGenerating geometry plots with decay positions...")
     
     # XY view (transverse view - looking down the beamline)
-    xy_path = os.path.join(args.output_dir, 'alp_decays_geometry_xy.pdf')
+    xy_path = os.path.join(args.output_dir, 'alp_decays_geometry_Wminus_xy.pdf')
     plot_geometry_with_decays_xy(plotter, decay_data_list, xy_path, args.caphi)
     
     # XZ view (side view along x)
-    xz_path = os.path.join(args.output_dir, 'alp_decays_geometry_xz.pdf')
+    xz_path = os.path.join(args.output_dir, 'alp_decays_geometry_Wminus_xz.pdf')
     plot_geometry_with_decays_xz(plotter, decay_data_list, xz_path, args.caphi)
     
     # ZY view (side view along z/beamline)
-    zy_path = os.path.join(args.output_dir, 'alp_decays_geometry_zy.pdf')
+    zy_path = os.path.join(args.output_dir, 'alp_decays_geometry_Wminus_zy.pdf')
     plot_geometry_with_decays_zy(plotter, decay_data_list, zy_path, args.caphi)
     
     print("\n" + "="*80)

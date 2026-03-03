@@ -31,17 +31,22 @@ if __name__ == "__main__":
     geom_adapter = GeometrySelectionAdapter(cav)
     sel_geo = SelectionGeometryAdapter(geom_adapter)
     
-    cav.createSimpleRPCs([cav.archRadius-0.2, cav.archRadius-0.6, cav.archRadius-1.2], RPCthickness=0.06)   # I added this line to create RPCs, otherwise intersectANUBISstationsSimple fails? This is consistent with ceiling configuration where in defineGeometry.py
-                                                                                                            # line 1202 the simple RPCs are called ceiling (self.geoMode = "ceiling") and at then end in line 1365 in the __main__ section, this exact same call is in 
+    #cav.createSimpleRPCs([cav.archRadius-0.2, cav.archRadius-0.6, cav.archRadius-1.2], RPCthickness=0.06)   # I added this line to create RPCs, otherwise intersectANUBISstationsSimple fails? This is consistent with ceiling configuration where in defineGeometry.py
+                                                                                                            # line 1202 the simple RPCs are called ceiling (self.geoMode = "ceiling") and at then end in line 1365 in the __main__ section, this exact same call is in
                                                                                                             # the if args.mode in ["", "simple"] block
+                                                                                                            
+    cav.createSimpleRPCs([cav.archRadius-0.2, cav.archRadius-1.2], RPCthickness=0.06)                       # Paul's team decided that the ANUBIS geometry we use for the sensitivity studies does not include the central RPC layer.
+                                                                                                            # The reasoning behind this is that the central singlet is useful for tracking and vertex reconstruction. However, practically if we build the detector
+                                                                                                            # and want to access the interior of it having ~1m clearance to move around in would be far better than ~0.5m
+                                                                                                     
 
     sel_cfg = SelectionConfig(
         geometry=sel_geo,
         minMET=30.0,
         minP=MinThresholds(LLP=0.1, chargedTrack=0.1, neutralTrack=0.1, jet=0.1),
         minPt=MinThresholds(LLP=0.0, chargedTrack=5.0, neutralTrack=5.0, jet=15.0),
-        minDR=MinDR(jet=0.4, chargedTrack=0.4, neutralTrack=0.4),
-        nStations=2, nIntersections=2, nTracks=1,
+        minDR=MinDR(jet=0.5, chargedTrack=0.5, neutralTrack=0.5),
+        nStations=2, nIntersections=2, nTracks=2,
     )
 
     run_cfg = RunConfig(reweightLifetime=False, plotTrajectory=False)
@@ -56,7 +61,7 @@ if __name__ == "__main__":
     pipeline = builder.build()
 
 
-    src_bundle = EventsBundleSource.from_bundle_file("/usera/fs568/set-anubis/ALP_Z_Runs/ALP_Z_sampledfs_Scan_3_Run_4.pkl.gz")
+    src_bundle = EventsBundleSource.from_bundle_file("/usera/fs568/set-anubis/ALP_Z_Runs/ALP_Z_sampledfs_Scan_1_Run_1.pkl.gz")
 
     mgr = SelectionManager(pipeline)
     combined = mgr.run_many(
