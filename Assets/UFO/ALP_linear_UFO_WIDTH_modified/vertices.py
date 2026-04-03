@@ -623,3 +623,9 @@ V_102 = Vertex(name = 'V_102',
               lorentz = [ L.VVS3HEFT ],
               couplings = {(0,0):C.GC_80})
 
+V_103 = Vertex(name = 'V_103',
+              particles = [ P.H, P.ax, P.Z ],
+              color = [ '1' ],
+              lorentz = [ L.SSV1 ],
+              couplings = {(0,0):C.GC_81})
+

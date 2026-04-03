@@ -330,3 +330,7 @@ GC_79 = Coupling(name = 'GC_79',
 GC_80 = Coupling(name = 'GC_80',
                  value = '-(complex(0,1)*GH)',
                  order = {'HIG':1})
+
+GC_81 = Coupling(name = 'GC_81',
+                 value = '-(CaPhi*ee*vev*complex(0,1))/(fa*sw*cw)',
+                 order = {'NP':1,'QED':1})

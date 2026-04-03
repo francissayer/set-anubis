@@ -101,3 +101,7 @@ VVVV5 = Lorentz(name = 'VVVV5',
 VVS3HEFT = Lorentz(name = 'VVS3HEFT',
                spins = [ 3, 3, 1 ],
                structure = 'P(1,2)*P(2,1) - P(-1,1)*P(-1,2)*Metric(1,2)')
+
+SSV1 = Lorentz(name = 'SSV1',
+               spins = [ 1, 1, 3 ],
+               structure = 'P(3,2)')
