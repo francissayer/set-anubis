@@ -4,7 +4,7 @@ r"""extract_selection_data
 
 Utilities to run the SetAnubis selection pipeline on EventsBundle sample
 files and write per-run selection summaries to CSV for the ``bb`` decay
-channel of the pp-production workflow.
+channel.
 
 This module performs the following, in order:
 

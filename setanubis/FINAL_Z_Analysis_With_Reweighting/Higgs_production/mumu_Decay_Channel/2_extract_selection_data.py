@@ -2,21 +2,34 @@
 r"""extract_selection_data
 =================================
 
-Utilities to process EventsBundle sample files through the SetAnubis
-selection pipeline and write per-run selection summaries to a CSV.
+Utilities to run the SetAnubis selection pipeline on EventsBundle sample
+files and write per-run selection summaries to CSV for the ``mumu`` decay
+channel.
 
-Key behavior:
-- Iterates over a list of bundle files (MadGraph sampledfs bundles).
-- For each bundle it runs the selection pipeline with lifetime reweighting
-    set to a target lifetime (computed from a target coupling C_{a\Phi}).
-- By default the script uses analytic formula-based partial widths for the
-    ALP fermionic decays (see ``DEFAULT_USE_FORMULA_WIDTHS`` and
-    ``DEFAULT_FA_GEV``). The lifetime is computed as $\tau = \hbar / \Gamma$.
+This module performs the following, in order:
 
-The CSV output contains per-bundle cutflow counters and the number of
-surviving LLPs for that reweighted lifetime. This module purposefully
-avoids executing external UFO evaluators by default to keep runtime
-deterministic and portable.
+- Discover MadGraph-generated EventsBundle files (pickled sample bundles)
+    in a configured directory (or from explicit file arguments).
+- For each bundle: determine the ALP mass from the bundle (or from the
+    MadGraph ``scan_run`` metadata), compute an ALP lifetime from a
+    target coupling ``C_{a\Phi}`` using simple analytic fermionic
+    partial-width formulae, reweight the events to that lifetime, and
+    execute the selection pipeline.
+- Aggregate per-run cutflow counters and the number of surviving LLPs
+    into an output CSV.
+
+Outputs
+-------
+The script writes a CSV (default: ``selection_cutflow_mumu_decay_channel.csv``)
+with one row per processed bundle. Each row contains metadata (filename,
+scan/run, mass, CaPhi), per-cut counters from the pipeline, the
+``n_surviving_llps`` integer and a ``status``/``error`` field on failure.
+
+Notes
+-----
+The script uses formula-based widths (no external UFO evaluators by
+default) to keep execution deterministic and suitable for offline
+processing.
 """
 
 import os
@@ -69,19 +82,25 @@ HBAR_GEV_S = 6.582119569e-25
 
 
 def build_selection(sel_mode: str = "standard", lifetime_s: Optional[float] = None, llp_pid: Optional[int] = None, seed: Optional[int] = None):
-    """Create and configure the selection pipeline used for processing.
+    """Build and configure a SelectionPipeline for processing bundles.
 
-    This builds a SelectionPipeline configured for the ANUBIS cavern
-    geometry and attaches a lifetime reweighter using ``lifetime_s``.
+    Parameters
+    ----------
+    sel_mode : str, optional
+        Selection mode passed to the pipeline builder (default ``"standard"``).
+    lifetime_s : float or None, optional
+        Target LLP lifetime in seconds to use for the reweighter. If ``None``
+        a sensible default is applied.
+    llp_pid : int or None, optional
+        PDG id of the LLP to which reweighting is applied (default: 9000005).
+    seed : int or None, optional
+        Integer RNG seed for the reweighter to ensure reproducible runs.
 
-    Args:
-        sel_mode: selection mode identifier forwarded to the pipeline
-        lifetime_s: target lifetime (seconds) used by the reweighter
-        llp_pid: PDG id of the LLP to which reweighting should be applied
-        seed: RNG seed used by the reweighter
-
-    Returns:
-        tuple: (pipeline, sel_cfg, run_cfg)
+    Returns
+    -------
+    pipeline, sel_cfg, run_cfg
+        The constructed pipeline object and its associated selection and run
+        configuration objects ready to be passed to the selection manager.
     """
     cav = ATLASCavern()
     geom_adapter = GeometrySelectionAdapter(cav)
@@ -105,7 +124,7 @@ def build_selection(sel_mode: str = "standard", lifetime_s: Optional[float] = No
         nStations=2, nIntersections=2, nTracks=2,
     )
     
-    # Reweighting should always be enabled for these runs.
+    # Reweighting is enabled for these sensitivity runs.
     run_cfg = RunConfig(reweightLifetime=True, plotTrajectory=False)
 
     builder = (
@@ -136,11 +155,33 @@ def build_selection(sel_mode: str = "standard", lifetime_s: Optional[float] = No
 
 
 def compute_lifetime_from_coupling(coupling: float, mass_GeV: Optional[float] = None) -> Optional[float]:
-    """Compute ALP lifetime (s) from analytic fermionic widths.
+    """Compute an approximate ALP lifetime from analytic fermionic widths.
 
-    This function uses the ALP mass provided by the caller (``mass_GeV``).
-    It does not consult UFO files or external evaluators. If ``mass_GeV``
-    is ``None`` the function will return ``None``.
+    The routine evaluates the tree-level fermionic partial widths using the
+    simple Yukawa-suppressed formulae used by the ALP model and sums the
+    open channels to obtain a total width::
+
+        Gamma_total = sum_f Gamma(a -> f fbar)
+        tau = hbar / Gamma_total
+
+    Parameters
+    ----------
+    coupling : float
+        The effective `C_{a\Phi}` coupling used in the width expressions.
+    mass_GeV : float or None
+        ALP mass in GeV. If ``None`` the function returns ``None``.
+
+    Returns
+    -------
+    float or None
+        Lifetime in seconds, or ``None`` if the width cannot be computed
+        (e.g. below kinematic thresholds or on error).
+
+    Notes
+    -----
+    This is a deterministic, offline-friendly approximation and intentionally
+    does not call external UFO evaluators. It includes the light quark and
+    charged-lepton channels with simple color factors.
     """
     try:
         if mass_GeV is None:
@@ -218,16 +259,30 @@ def extract_scan_run_from_filename(filename: str) -> tuple:
 
 
 def extract_mass_and_coupling(bundle_path: str, scan: int, run: int) -> tuple:
-    """
-    Extract mass and CaPhi coupling from bundle file and MadGraph scan_run file.
-    
-    The function attempts the following, in order:
-    - Read the ALP mass from the bundle pickle ('LLPs' table) if present.
-    - Look for a MadGraph ``scan_run_*.txt`` file under the related scan
-      directory and parse the header to find the mass and CaPhi columns.
+    """Determine ALP mass and CaPhi coupling for a given bundle file.
 
-    Returns:
-        tuple: (mass_GeV or None, CaPhi_value or None)
+    Strategy (best-effort):
+    1. Try to read the pickled EventsBundle and obtain the ALP mass from the
+       ``LLPs`` table if present (most reliable).
+    2. If not found, locate the corresponding MadGraph ``scan_run_*.txt`` in
+       the scan's ``Events`` directory and parse the table header to extract
+       the mass and the alppars column that maps to ``CaPhi``.
+
+    Parameters
+    ----------
+    bundle_path : str
+        Path to the pickled bundle file (gzip compressed pickle).
+    scan : int
+        Scan index inferred from the bundle filename (used to find MadGraph
+        scan directories).
+    run : int
+        Run index within the scan (used to match the scan_run table row).
+
+    Returns
+    -------
+    (mass_GeV, CaPhi)
+        Tuple containing the ALP mass (float) and the CaPhi coupling (float),
+        either or both may be ``None`` if not discoverable.
     """
     import pickle
     import gzip
@@ -294,15 +349,19 @@ def extract_mass_and_coupling(bundle_path: str, scan: int, run: int) -> tuple:
 
 
 def process_bundle_file(bundle_path: str, pipeline, sel_cfg, run_cfg, reweight_lifetime: Optional[float] = None) -> Dict:
-    """
-    Run selection pipeline on a single bundle file and extract all cut data.
-    
-    The returned dictionary contains metadata plus one key per cut in the
-    pipeline's cutflow and a `n_surviving_llps` integer. On error the
-    dictionary includes `'status': 'failed'` and an `'error'` string.
+    """Process one EventsBundle: run selection and collect cutflow results.
 
-    Returns:
-        Dict containing file info, cutflow data, and number of surviving LLPs
+    Steps performed:
+    - Determine scan/run, mass and CaPhi for the bundle.
+    - Wrap the bundle into an ``EventsBundleSource`` and pass it to the
+        ``SelectionManager`` to execute the pipeline with the supplied
+        ``sel_cfg`` and ``run_cfg``.
+    - Collect per-cut counters from ``combined.cutflow_sum`` and the final
+        surviving LLP count from the pipeline output.
+
+    The returned dictionary always contains metadata keys (``filename``,
+    ``scan``, ``run``, ``mass``, ``CaPhi``) and either ``status: 'success'``
+    with cutflow keys, or ``status: 'failed'`` and an ``error`` message.
     """
     filename = Path(bundle_path).name
     scan, run = extract_scan_run_from_filename(filename)
@@ -364,16 +423,25 @@ def process_bundle_file(bundle_path: str, pipeline, sel_cfg, run_cfg, reweight_l
 
 
 def find_bundle_files(directory: str, pattern: str = "Higgs_to_ALP_Z_sampledfs_*.pkl.gz") -> List[str]:
-    """Find all bundle files matching the pattern in the directory."""
-    """
-    Recursively search ``directory`` for files matching ``pattern``.
+    """Recursively find EventsBundle files matching ``pattern`` under ``directory``.
 
-    The function handles when the user points to a Generated_Events_N
-    subfolder by searching the parent directory to include sibling
-    Generated_Events_* folders.
+    If the provided ``directory`` points to a ``Generated_Events_N`` subfolder
+    the function searches the parent directory so that sibling
+    ``Generated_Events_*`` folders are included. This makes the discovery
+    robust when a user points to a single generated-events folder.
 
-    Returns:
-        sorted list of absolute file paths matching the pattern.
+    Parameters
+    ----------
+    directory : str
+        Root directory to search under.
+    pattern : str
+        Glob pattern to match bundle filenames (default
+        ``Higgs_to_ALP_Z_sampledfs_*.pkl.gz``).
+
+    Returns
+    -------
+    list[str]
+        Sorted list of absolute file paths that matched the pattern.
     """
     bundle_files = []
     path = Path(directory)
