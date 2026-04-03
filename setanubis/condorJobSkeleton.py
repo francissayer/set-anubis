@@ -16,7 +16,7 @@ cd /usera/fs568/set-anubis
 source /usera/fs568/set-anubis/.venv/bin/activate
 """
 
-commandString = f"/usera/fs568/set-anubis/.venv/bin/python /usera/fs568/set-anubis/setanubis/ALP_W-_Analysis/alp_W-_MadGraph_Interface.py"
+commandString = f"/usera/fs568/set-anubis/.venv/bin/python /usera/fs568/set-anubis/setanubis/FINAL_Z_Analysis_With_Reweighting/pp_production/uu_Decay_Channel/1_alp_Z_MadGraph_Interface+df_creation+df_to_sampledfs.py"
 
 if args.testArg:
     commandString+=f" --test"
@@ -37,7 +37,7 @@ if not os.path.exists(jobscriptDir):
     os.makedirs(jobscriptDir)
 
 # Could put the following in a loop for a range of masses and couplings etc
-for jobID in [2]:
+for jobID in [15]:
     jobDir = f"{jobscriptDir}/job{jobID}"
 
     if not os.path.exists(jobDir):
