@@ -238,3 +238,8 @@ Logs/
 db/EventsStorage
 setanubis/SetAnubis/core/MadGraph/app/TestFiles/tag_1_pythia8_events.hepmc
 
+
+# Things I added
+*.csv
+*.png
+*.pdf
