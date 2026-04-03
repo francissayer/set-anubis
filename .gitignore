@@ -243,3 +243,4 @@ setanubis/SetAnubis/core/MadGraph/app/TestFiles/tag_1_pythia8_events.hepmc
 *.csv
 *.png
 *.pdf
+*.pkl
