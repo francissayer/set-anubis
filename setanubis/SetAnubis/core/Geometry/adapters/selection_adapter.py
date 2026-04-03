@@ -30,11 +30,11 @@ class GeometrySelectionAdapter:
 
     def inCavern(self, x: float, y: float, z: float,
                   max_radius: Optional[float] = None) -> bool:
-        return self.geometry.in_cavern(x,y,z,max_radius)
+        return self.geometry.inCavern(x, y, z, maxRadius=max_radius)
     
     def inATLAS(self, x: float, y: float, z: float,
                   max_radius: Optional[float] = None) -> bool:
-        return self.geometry.in_atlas(x,y,z,max_radius)
+        return self.geometry.inATLAS(x, y, z, trackingOnly=False)
     
     def coordsToOrigin(self, x, y, z, origin=[]):
         return self.geometry.coordsToOrigin(x,y,z,origin)
@@ -49,18 +49,23 @@ class GeometrySelectionAdapter:
     def intersectANUBISstationsSimple(self, theta, phi, d, position, extremaPosition, verbose):
         return self.geometry.intersectANUBISstationsSimple(theta,phi,d, position, extremaPosition, verbose)
 
+    def intersect_stations_simple(self, theta, phi, position, extrema_position=None):
+        """Wrapper for decay_hits compatibility - calls intersectANUBISstationsSimple with ANUBIS_RPCs"""
+        extrema = [] if extrema_position is None else extrema_position
+        return self.geometry.intersectANUBISstationsSimple(theta, phi, self.geometry.ANUBIS_RPCs, position, extrema, False)
+
     def checkInCavern(self, row: pd.Series, rpc_max_radius: float, decay_vertex_col: str) -> bool:
         x, y, z = extract_xyz(row[decay_vertex_col])
         mr = rpc_max_radius if np.isfinite(rpc_max_radius) else None
-        return self.geometry.in_cavern(x, y, z, max_radius=mr)
+        return self.geometry.inCavern(x, y, z, maxRadius=mr)
 
     def checkInShaft(self, row: pd.Series, rpc_max_radius: float, decay_vertex_col: str) -> bool:
         x, y, z = extract_xyz(row[decay_vertex_col])
-        return self.geometry.in_shaft(x, y, z, shafts=("PX14", "PX16"), include_cavern_cone=True)
+        return self.geometry.inShaft(x, y, z, shafts=("PX14", "PX16"), includeCavernCone=True)
 
     def checkInATLAS(self, row: pd.Series, tracking_only: bool, decay_vertex_col: str) -> bool:
         x, y, z = extract_xyz(row[decay_vertex_col])
-        return self.geometry.in_atlas(x, y, z, tracking_only=bool(tracking_only))
+        return self.geometry.inATLAS(x, y, z, trackingOnly=bool(tracking_only))
 
     def checkIntersectionsWithANUBIS(
         self,
@@ -96,9 +101,9 @@ class GeometrySelectionAdapter:
         position = (X, Y, Z)
 
         try:
-            res = self.geometry.intersect_stations_simple(theta, phi, position, None)
+            res = self.geometry.intersectANUBISstationsSimple(theta, phi, self.geometry.ANUBIS_RPCs, position, None, False)
         except TypeError:
-            res = self.geometry.intersect_stations_simple(theta, phi, position)
+            res = self.geometry.intersectANUBISstationsSimple(theta, phi, self.geometry.ANUBIS_RPCs, position)
 
         points = getattr(res, "points", None)
         stations = getattr(res, "station_indices", None)
