@@ -16,7 +16,7 @@ if __name__ == "__main__":
     
     Everything concerning this interface is available in the ModelCore.exampleNeoSetAnubisInterface.py example.
     """
-    neo = SetAnubisInterface("/usera/fs568/set-anubis/Assets/UFO/ALP_linear_UFO_WIDTH")
+    neo = SetAnubisInterface("/usera/fs568/set-anubis/Assets/UFO/ALP_linear_UFO_WIDTH_modified")
     
     """
     Configuration for the MagraphInterface (for writing cards). Few inputs are needed :
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     config = MadGraphCommandConfig(
         neo_set_anubis=neo,
         cache=False,
-        model_in_madgraph="ALP_linear_UFO_WIDTH",
+        model_in_madgraph="/usera/fs568/set-anubis/Assets/UFO/ALP_linear_UFO_WIDTH_modified",
         shower="py8",
         madspin="ON")
     
@@ -56,7 +56,32 @@ if __name__ == "__main__":
     param_card = card_interface.param_card
 
     runcard_editor = card_interface.run_card_builder
-    runcard_editor.set("nevents", 2000)
+    runcard_editor.set("nevents", 100)
+    
+    #############################################################################################
+    gen = 1
+    scan = 1
+    
+    # Deterministic seed derived from generated-events (gen) and scan number
+    # Compose seed = gen*1_000_000 + scan*1_000, fit to MadGraph's signed-32 limit (with modulo operation) and avoid 0
+    # Generate a unique, reproducible Monte‑Carlo seed for this job.
+    # We place the `gen` identifier in the thousands place so different
+    # Generated_Events groups occupy distinct ranges, and then rely on
+    # MadGraph's internal behaviour to make each run unique within a scan.
+    # MadGraph calls `update_random()` twice during the run flow which
+    # advances its internal seed by +3 each call (effective +6 between
+    # successive runs). So every run in a parameter scan ends up with a 
+    # different seed (+6 to the seed for each run in the scan) while keeping the
+    # overall value reproducible and easy to trace back to `gen` and the
+    # scan index.
+    #
+    # example: for gen=1, scan=1, seed = 1_000_000 + 1_000 = 1_001_000; then the runs in the scan will have seeds 1_001_000, 1_001_006, 1_001_012, etc.
+    seed = (gen * 1_000_000 + scan * 1_000) % 2147483647
+    if seed == 0:
+        seed = 1
+    runcard_editor.set("iseed", seed)
+    #############################################################################################
+    
     #############################################################################################
     # # I've added this to use LHAPDF for PDFs in MadGraph (change ID to desired set)
     # runcard_editor.set("pdlabel", "lhapdf")
@@ -89,13 +114,15 @@ if __name__ == "__main__":
 
     
     jobcard = card_interface.josbscript_builder
-    jobcard.add_process("define ll = e- e+ mu- mu+ ta- ta+ \n define qq = u u~ d d~ s s~ c c~ b b~ t t~ \n define p = g u c d s b t u~ c~ d~ s~ b~ t~ \n generate p p > ax Z")
-    jobcard.set_output_launch("ALP_axZTest2_scan_1")
+    #jobcard.add_process("generate p p > ax Z")
+    #jobcard.add_process("define ll = e- e+ mu- mu+ ta- ta+ \n define qq = u u~ d d~ s s~ c c~ b b~ t t~ \n define p = g u c d s b t u~ c~ d~ s~ b~ t~ \n generate p p > ax Z")
+    jobcard.add_process("define ll = e- e+ mu- mu+ ta- ta+ \n define qq = u u~ d d~ s s~ c c~ b b~ t t~ \n generate p p > ax Z")
+    jobcard.set_output_launch(f"/raid/anubis/sensitivityStudyData/ALPs/fermionCoupled/ALP_Z_testrun/Generated_Events_{gen}/ALP_axZ_scan_{scan}")
     jobcard.configure_cards()
     jobcard.add_auto_width("WALP")  # Automatically compute ALP width from decay formulas
     jobcard.add_parameter_scan("Ma", "[0.1]")      # ALP mass in GeV
     jobcard.add_parameter_scan("fa", "[1000]")     # ALP decay constant in GeV
-    jobcard.add_parameter_scan("CaPhi", "[0.1]")   # Universal ALP-fermion coupling
+    jobcard.add_parameter_scan("CaPhi", "[0.1,0.01,0.001,0.0001,0.00001]")   # Universal ALP-fermion coupling
     jobcard.add_parameter_scan("CGtil", "[0.0]")   # ALP-Gluon coupling
     jobcard.add_parameter_scan("CWtil", "[0.0]")   # ALP-W coupling
     jobcard.add_parameter_scan("CBtil", "[0.0]")   # ALP-B coupling
