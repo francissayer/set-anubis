@@ -43,9 +43,8 @@ from SetAnubis.core.Selection.domain.SelectionPipeline import SelectionPipelineB
 from SetAnubis.core.Selection.domain.SelectionManager import SelectionManager
 from SetAnubis.core.Selection.domain.DatasetSource import EventsBundleSource
 from SetAnubis.core.Selection.domain.SelectionEngine import SelectionConfig, RunConfig, MinThresholds, MinDR
-from SetAnubis.core.Selection.adapters.input.SelectionGeometryAdapter import SelectionGeometryAdapter
-from SetAnubis.core.Geometry.adapters.selection_adapter import GeometrySelectionAdapter
-from SetAnubis.core.Geometry.domain.defineGeometry import ATLASCavern
+from SetAnubis.core.Selection.adapters.input.ATLASCavernSelectionGeometryAdapter import ATLASCavernSelectionGeometryAdapter
+from SetAnubis.core.Geometry.adapters.ATLASCavernGeometry import ATLASCavernGeometry, ATLASCavernGeometryConfig, GeometryRegion
 import math
 
 # ------------------
@@ -75,7 +74,7 @@ PROCESS_INDEX = 1
 DECAY_CHANNEL_INDEX = 2
 
 # Default CaPhi coupling scan used when --target-couplings is not provided
-DEFAULT_TARGET_COUPLINGS = [0.00316,0.00251,0.002,0.00158,0.00126,0.001,0.000794,0.000631,0.000501,0.000398,0.000316,0.000251,0.0002,0.000158,0.000126,0.0001,0.0000794,0.0000631,0.0000501,0.0000398,0.0000316,0.0000251,0.00002,0.0000158,0.0000126,0.00001]
+DEFAULT_TARGET_COUPLINGS = [0.00631,0.00501,0.00398,0.00316,0.00251,0.002,0.00158,0.00126,0.001,0.000794,0.000631,0.000501,0.000398,0.000316,0.000251,0.0002,0.000158,0.000126,0.0001,0.0000794,0.0000631,0.0000501,0.0000398,0.0000316,0.0000251,0.00002,0.0000158,0.0000126,0.00001,0.00000794,0.00000631,0.00000501,0.00000398,0.00000316,0.00000251,0.000002,0.00000158,0.00000126,0.000001]
 
 # hbar in GeV*s used for lifetime conversion
 HBAR_GEV_S = 6.582119569e-25
@@ -106,18 +105,39 @@ def build_selection(sel_mode: str = "standard", lifetime_s: Optional[float] = No
         The constructed pipeline object and its associated selection and run
         configuration objects ready to be passed to the selection manager.
     """
-    cav = ATLASCavern()
-    geom_adapter = GeometrySelectionAdapter(cav)
-    sel_geo = SelectionGeometryAdapter(geom_adapter)
-    
-    # Create RPCs for ANUBIS station intersection
-    # cav.createSimpleRPCs(
-    #     [cav.archRadius-0.2, cav.archRadius-0.6, cav.archRadius-1.2], 
-    #     RPCthickness=0.06
-    # )
-    cav.createSimpleRPCs([cav.archRadius-0.2, cav.archRadius-1.2], RPCthickness=0.06)                       # Paul's team decided that the ANUBIS geometry we use for the sensitivity studies does not include the central RPC layer.
-                                                                                                            # The reasoning behind this is that the central singlet is useful for tracking and vertex reconstruction. However, practically if we build the detector
-                                                                                                            # and want to access the interior of it having ~1m clearance to move around in would be far better than ~0.5m
+    # Create an ATLASCavernGeometry instance (v2-compatible) using explicit
+    # fields to mirror the example in compare_old_geo_with_new.py
+    base_cfg = ATLASCavernGeometryConfig(
+        mode="ceiling",
+        origin="IP",
+        rpc_eff=1.0,
+        n_rpcs_per_layer=1,
+        use_cache=False,
+        cache_file="atlas_cavern.pkl",
+    )
+    geometry = ATLASCavernGeometry.create(base_cfg)
+
+    # Configure legacy-style simple RPC radii similar to historical behavior
+    legacy_cfg = ATLASCavernGeometryConfig(
+        mode=base_cfg.mode,
+        origin=base_cfg.origin,
+        rpc_eff=base_cfg.rpc_eff,
+        n_rpcs_per_layer=base_cfg.n_rpcs_per_layer,
+        use_cache=base_cfg.use_cache,
+        cache_file=base_cfg.cache_file,
+        simple_rpc_radii=(
+            geometry._cavern.archRadius - 0.2,
+            geometry._cavern.archRadius - 1.2,
+        ),                                                                  # Paul's team decided that the ANUBIS geometry we use for the sensitivity studies does not include the central RPC layer.
+                                                                            # The reasoning behind this is that the central singlet is useful for tracking and vertex reconstruction. However, practically if we build the detector
+                                                                            # and want to access the interior of it having ~1m clearance to move around in would be far better than ~0.5m
+        simple_rpc_thickness=0.06,
+        rpc_max_radius=geometry._cavern.archRadius - 1.2 - 0.5,
+    )
+
+    geometry.reconfigure(legacy_cfg)
+
+    sel_geo = ATLASCavernSelectionGeometryAdapter(geometry, default_decay_region=GeometryRegion.FIDUCIAL)
 
     sel_cfg = SelectionConfig(
         geometry=sel_geo,
