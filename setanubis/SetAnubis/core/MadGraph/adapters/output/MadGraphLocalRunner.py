@@ -4,14 +4,7 @@ from SetAnubis.core.MadGraph.ports.output.IMadGraphRunner import IMadGraphRunner
 import re
 
 class MadGraphLocalRunner(IMadGraphRunner):
-<<<<<<< HEAD
     def __init__(self, madgraph_path : str = None, card_dir : str = ""):
-=======
-    def __init__(self, madgraph_path : str = None, jobID: int = None):
-
-        self.jobID = jobID  # This adds a jobID argument so Condor can run multiple at the same time
-
->>>>>>> a911e66 (Added a subfolder within MadGraphTemp which is called something which depends on self.jobID so that when you run multiple jobs in parallel in MadGraph, each of the runcards don't overwrite each other in the same temporary folder)
         if madgraph_path:
             self.madgraph_path : str = madgraph_path
         else :
@@ -86,13 +79,8 @@ class MadGraphLocalRunner(IMadGraphRunner):
     
     def __card_path(self):
         ASSETS_DIR = os.path.abspath(os.path.join(__file__, "..", "..", "..", "..", "..", "..", "..", "Assets"))
-<<<<<<< HEAD
         if self.card_dir!="":
             card_path = os.path.join(ASSETS_DIR, "MadGraph", self.card_dir)
-=======
-        if self.jobID is not None:
-            card_path = os.path.join(ASSETS_DIR, "MadGraph", "MadGraphTemp", f"job{self.jobID}")
->>>>>>> a911e66 (Added a subfolder within MadGraphTemp which is called something which depends on self.jobID so that when you run multiple jobs in parallel in MadGraph, each of the runcards don't overwrite each other in the same temporary folder)
         else:
             card_path = os.path.join(ASSETS_DIR, "MadGraph", "MadGraphTemp")
         return card_path
