@@ -155,7 +155,7 @@ if __name__ == "__main__":
         print(param_card)
         print("------------------------------------------------------------------------------------------")
         
-        mlr = MadGraphLocalRunner(jobID=11) # Unique jobID to create a unique directory in MadGraph to store the temporary cards for this run and avoid conflicts with other runs. Can be any integer, just make sure it's different from the one used for other decay channels and processes to avoid conflicts in the MadGraph cache.
+        mlr = MadGraphLocalRunner(card_dir=f"temp_11") # Unique jobID to create a unique directory in MadGraph to store the temporary cards for this run and avoid conflicts with other runs. Can be any integer, just make sure it's different from the one used for other decay channels and processes to avoid conflicts in the MadGraph cache.
         
         if not dry_run:
             mg = MadgraphInterface(
