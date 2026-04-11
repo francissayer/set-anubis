@@ -17,7 +17,7 @@ from SetAnubis.core.Selection.adapters.output.WriteLoadSelectionDict import save
 
 if __name__ == "__main__":
     
-    for gen in range(6,16):
+    for gen in range(12,16):
 
         """
         Paramater use to choose if we want to produce the card only (True) or run madgraph on docker.
