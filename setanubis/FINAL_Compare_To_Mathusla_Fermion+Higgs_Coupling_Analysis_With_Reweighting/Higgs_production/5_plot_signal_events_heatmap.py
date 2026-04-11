@@ -304,7 +304,7 @@ def main():
                         help='Effective coupling C_Zh^eff for h->Z a (dimensionless)')
     parser.add_argument('--mu-heatmaps', dest='mu_heatmaps', action='store_true',
                         help='Produce Caphi vs C_Zh heatmaps for mumu channel per BR_mu values (mass filter)')
-    parser.add_argument('--czh-grid', dest='czh_grid', type=str, default='log:0.0001,1.0,100',
+    parser.add_argument('--czh-grid', dest='czh_grid', type=str, default='log:0.001,10,200',
                         help='Grid specification for C_Zh values: "log:start,stop,n" or "lin:start,stop,n" or comma-list')
     parser.add_argument('--mass', dest='mass', type=float, default=1.0, help='ALP mass [GeV] to plot (default 1.0)')
     parser.set_defaults(save_csv=True, acceptance_percent=False)

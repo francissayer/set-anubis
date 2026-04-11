@@ -502,8 +502,21 @@ Examples:
     ap.add_argument(
         "--reweight-seed",
         type=int,
-        default=DEFAULT_REWEIGHT_SEED,
-        help=f"Random seed for the reweighter (default: {DEFAULT_REWEIGHT_SEED})."
+        default=None,
+        help="Random seed for the reweighter (if provided, overrides the computed per-bundle seed)."
+    )
+    ap.add_argument(
+        "--BR_mu",
+        type=float,
+        default=None,
+        help="If provided, only process this muon branching ratio (overrides DEFAULT_BR_MU_TUPLE)."
+    )
+    ap.add_argument(
+        "--force-coup-pos",
+        dest='force_coup_pos',
+        type=int,
+        default=None,
+        help="If provided, use this 1-based coupling position when composing deterministic seed (useful for single-coupling jobs)."
     )
     # No UFO coupling parameter required; lifetimes computed from bundle mass
     ap.add_argument(
@@ -620,7 +633,10 @@ Examples:
     # using the default coupling scan defined in the script.
     target_couplings = args.target_couplings if args.target_couplings else DEFAULT_TARGET_COUPLINGS
     # Branching ratio(s) to muons to iterate over (configuration tuple)
-    br_mu_list = DEFAULT_BR_MU_TUPLE
+    if getattr(args, 'BR_mu', None) is not None:
+        br_mu_list = (args.BR_mu,)
+    else:
+        br_mu_list = DEFAULT_BR_MU_TUPLE
 
     all_results = []
     for br_pos, br_mu in enumerate(br_mu_list, start=1):
@@ -678,13 +694,18 @@ Examples:
                 gen_idx = int(m.group(1)) if m else 0
                 run_idx = int(run) if run is not None else 0
 
-                seed = (
-                    gen_idx * 1_000_000
-                    + PROCESS_INDEX * 100_000
-                    + DECAY_CHANNEL_INDEX * 10_000
-                    + run_idx * 100
-                    + int(coup_pos)
-                ) % 2147483647
+                # Allow overriding of the coupling position or the full seed
+                if getattr(args, 'reweight_seed', None) is not None:
+                    seed = int(args.reweight_seed) % 2147483647
+                else:
+                    coup_pos_used = int(args.force_coup_pos) if getattr(args, 'force_coup_pos', None) is not None else int(coup_pos)
+                    seed = (
+                        gen_idx * 1_000_000
+                        + PROCESS_INDEX * 100_000
+                        + DECAY_CHANNEL_INDEX * 10_000
+                        + run_idx * 100
+                        + coup_pos_used
+                    ) % 2147483647
                 if seed == 0:
                     seed = 1
 
