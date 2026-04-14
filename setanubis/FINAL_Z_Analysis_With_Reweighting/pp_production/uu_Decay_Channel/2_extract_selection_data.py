@@ -543,6 +543,13 @@ Examples:
         default=DEFAULT_REWEIGHT_SEED,
         help=f"Random seed for the reweighter (default: {DEFAULT_REWEIGHT_SEED})."
     )
+    ap.add_argument(
+        "--force-coup-pos",
+        dest='force_coup_pos',
+        type=int,
+        default=None,
+        help="If provided, use this 1-based coupling position when composing deterministic seed (useful for single-coupling jobs)."
+    )
     # No UFO coupling parameter required; lifetimes computed from bundle mass
     ap.add_argument(
         "--reweighted-outdir",
@@ -706,12 +713,17 @@ Examples:
             gen_idx = int(m.group(1)) if m else 0
             run_idx = int(run) if run is not None else 0
 
+            # Allow forcing the coupling position (useful for single-coupling jobs
+            # launched via condor wrappers). If not provided, use the loop index
+            # `coup_pos` as usual.
+            coup_pos_for_seed = args.force_coup_pos if getattr(args, 'force_coup_pos', None) is not None else coup_pos
+
             seed = (
                 gen_idx * 1_000_000
                 + PROCESS_INDEX * 100_000
                 + DECAY_CHANNEL_INDEX * 10_000
                 + run_idx * 100
-                + int(coup_pos)
+                + int(coup_pos_for_seed)
             ) % 2147483647
             if seed == 0:
                 seed = 1
