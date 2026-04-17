@@ -410,7 +410,7 @@ def main():
                         help='Show acceptance as percentage')
     parser.add_argument('--no-acceptance-percent', dest='acceptance_percent', action='store_false',
                         help='Show acceptance as fraction (not percentage)')
-    parser.add_argument('--czh-eff', type=float, default=0.004,
+    parser.add_argument('--czh-eff', type=float, default=0.72,
                         help='Effective coupling C_Zh^eff for h->Z a (dimensionless)')
     parser.set_defaults(save_csv=True, acceptance_percent=False)
     args = parser.parse_args()
