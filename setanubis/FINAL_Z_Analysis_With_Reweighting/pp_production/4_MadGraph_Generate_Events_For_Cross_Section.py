@@ -108,7 +108,7 @@ if __name__ == "__main__":
     jobcard.add_auto_width("WALP")  # Automatically compute ALP width from decay formulas
     jobcard.add_parameter_scan("Ma", "[0.0562,0.1,0.178,0.316,0.562,1,1.78,3.16,5.62,10,17.8,31.6]")      # ALP mass in GeV
     jobcard.add_parameter_scan("fa", "[1000]")     # ALP decay constant in GeV
-    jobcard.add_parameter_scan("CaPhi", "[1,0.316,0.1,0.0316,0.01,0.00316,0.001,0.000316,0.0001,0.0000316,0.00001,0.00000316,0.000001,0.000000316,0.0000001,0.0000000316]")   # Universal ALP-fermion coupling
+    jobcard.add_parameter_scan("CaPhi", "[1.0,0.794,0.631,0.501,0.398,0.316,0.251,0.200,0.158,0.126,0.1,0.0794,0.0631,0.0501,0.0398,0.0316,0.0251,0.0200,0.0158,0.0126,0.01,0.00794,0.00631,0.00501,0.00398,0.00316,0.00251,0.00200,0.00158,0.00126,0.001,0.000794,0.000631,0.000501,0.000398,0.000316,0.000251,0.000200,0.000158,0.000126,0.0001,0.0000794,0.0000631,0.0000501,0.0000398,0.0000316,0.0000251,0.0000200,0.0000158,0.0000126,0.00001,0.00000794,0.00000631,0.00000501,0.00000398,0.00000316,0.00000251,0.00000200,0.00000158,0.00000126,0.000001,0.000000794,0.000000631,0.000000501,0.000000398,0.000000316,0.000000251,0.000000200,0.000000158,0.000000126,0.0000001,0.0000000794,0.0000000631,0.0000000501,0.0000000398,0.0000000316]")   # Universal ALP-fermion coupling
     jobcard.add_parameter_scan("CGtil", "[0.0]")   # ALP-Gluon coupling
     jobcard.add_parameter_scan("CWtil", "[0.0]")   # ALP-W coupling
     jobcard.add_parameter_scan("CBtil", "[0.0]")   # ALP-B coupling
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     print(param_card)
     print("------------------------------------------------------------------------------------------")
     
-    mlr = MadGraphLocalRunner(jobID=8) # Unique jobID to create a unique directory in MadGraph to store the temporary cards for this run and avoid conflicts with other runs. Can be any integer, just make sure it's different from the one used for other decay channels and processes to avoid conflicts in the MadGraph cache.
+    mlr = MadGraphLocalRunner(card_dir=f"temp_8") # Unique jobID to create a unique directory in MadGraph to store the temporary cards for this run and avoid conflicts with other runs. Can be any integer, just make sure it's different from the one used for other decay channels and processes to avoid conflicts in the MadGraph cache.
     
     if not dry_run:
         mg = MadgraphInterface(
