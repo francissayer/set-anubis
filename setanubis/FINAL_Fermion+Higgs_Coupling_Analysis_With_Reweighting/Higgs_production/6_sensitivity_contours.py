@@ -427,7 +427,7 @@ def main():
     parser.add_argument('--csv', type=str, default=default_csv, help='Path to higgs_signal_events_data.csv')
     parser.add_argument('--output', type=str, default=os.path.join(os.path.dirname(__file__), 'Plots', 'sensitivity_contours.png'), help='Output PNG path')
     parser.add_argument('--levels', type=str, default='4', help='Comma-separated contour levels (event counts)')
-    parser.add_argument('--sigma', type=float, default=1.0, help='Gaussian smoothing sigma (log-grid units). Use 0 to disable smoothing, use 1 for final plot')
+    parser.add_argument('--sigma', type=float, default=20.0, help='Gaussian smoothing sigma (log-grid units). Use 0 to disable smoothing, use 1 for final plot')
     parser.add_argument('--no-log', dest='use_log', action='store_false', help='Do not use log normalization/scales')
     parser.set_defaults(use_log=True)
     args = parser.parse_args()
