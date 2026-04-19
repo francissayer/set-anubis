@@ -19,11 +19,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.patheffects as path_effects
-import matplotlib.tri as mtri
 from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
 from matplotlib.path import Path as MplPath
 import re
+import matplotlib.ticker as mticker
 try:
     # Use LinearNDInterpolator to prevent cubic "overshoot" loops and artifacts
     from scipy.interpolate import LinearNDInterpolator
@@ -276,12 +275,12 @@ def _collect_experiment_contour_handles(ax, base_dir=None, patterns=None):
         candidates = []
         try:
             candidates.extend(sorted(glob.glob(str(base_dir / pattern))))
-        except Exception:
-            pass
+        except Exception as e:
+            print(f'Warning: glob search failed for pattern {pattern} in {base_dir}: {e}')
         try:
             candidates.extend(sorted(glob.glob(str(base_dir / 'Plots' / pattern))))
-        except Exception:
-            pass
+        except Exception as e:
+            print(f'Warning: glob search failed for pattern {pattern} in Plots subdir of {base_dir}: {e}')
 
         candidates = sorted(set(candidates))
         if not candidates:
@@ -297,13 +296,15 @@ def _collect_experiment_contour_handles(ax, base_dir=None, patterns=None):
                 df = pd.read_csv(fp, comment='#', header=0)
                 x = df.iloc[:, 0].astype(float).values
                 y = df.iloc[:, 1].astype(float).values
-            except Exception:
+            except Exception as e:
+                print(f'Warning: failed to read experimental contour CSV {fp}: {e}')
                 continue
 
             # Extract BR preferentially from the CSV, falling back to filename
             try:
                 br = _extract_br_value(fp, df=df)
-            except Exception:
+            except Exception as e:
+                print(f'Warning: failed to extract BR value from {fp}: {e}')
                 br = None
 
             # For BR<1 contours (ANUBIS, LHC, MATHUSLA), avoid modifying
@@ -379,7 +380,17 @@ def _collect_experiment_contour_handles(ax, base_dir=None, patterns=None):
                     else:
                         plot_color = _tab10_color_by_index(0)
 
-            ax.plot(x, y, color=plot_color, lw=lw, linestyle=linestyle, zorder=120)
+            # choose z-order so ANUBIS contours plot above MATHUSLA and LHC
+            dname = str(dataset).upper() if dataset is not None else ''
+            if dname.startswith('ANUBIS'):
+                zord = 220
+            elif dname.startswith('MATHUSLA'):
+                zord = 180
+            elif dname.startswith('LHC'):
+                zord = 160
+            else:
+                zord = 120
+            ax.plot(x, y, color=plot_color, lw=lw, linestyle=linestyle, zorder=zord)
             # For BR==1 (solid) keep a legend handle but do NOT append
             # any branching-ratio suffix; for BR<1 do not place inline labels.
             if is_br1:
@@ -445,7 +456,7 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
     try:
         cmap.set_bad('lightgrey')
     except Exception:
-        pass
+        print('Warning: failed to set colormap bad color')
 
     fig, ax = plt.subplots(figsize=(8, 12))
 
@@ -478,12 +489,12 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
         else:
             ax.set_ylim(float(cv.min()) * 0.9, float(cv.max()) * 1.1)
     except Exception:
-        try:
-            ax.relim()
-            ax.autoscale_view()
-            ax.margins(0.06)
-        except Exception:
-            pass
+            try:
+                ax.relim()
+                ax.autoscale_view()
+                ax.margins(0.06)
+            except Exception as e:
+                print(f'Warning: autoscale_view failed: {e}')
 
     # Use SciPy's LinearNDInterpolator on scattered log-space data
     if LinearNDInterpolator is None:
@@ -552,9 +563,8 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
             GZ_log_flat = GZ_log.ravel()
             GZ_log_flat[~inside] = np.nan
             GZ_log = GZ_log_flat.reshape(GZ_log.shape)
-    except Exception:
-        # If hull computation fails, continue without masking
-        pass
+    except Exception as e:
+        print(f'Warning: ConvexHull masking failed: {e}')
 
     # Optional Gaussian smoothing in log-space (highly recommended for linear interp to round corners)
     if gaussian_filter is not None and smooth_sigma is not None and smooth_sigma > 0:
@@ -568,8 +578,8 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
             smoothed = gaussian_filter(filled, sigma=smooth_sigma, mode='nearest')
             smoothed[~np.isfinite(GZ_log)] = np.nan
             GZ_log = smoothed
-        except Exception:
-            pass
+        except Exception as e:
+            print(f'Warning: gaussian_filter smoothing failed: {e}')
 
     GZ = np.where(np.isfinite(GZ_log), 10.0 ** GZ_log, np.nan)
     GX, GY = np.meshgrid(10.0 ** LOGX, 10.0 ** LOGY)
@@ -578,8 +588,8 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
     if smooth_sigma is not None and smooth_sigma > 0 and np.any(positive_mask):
         try:
             GZ = np.clip(GZ, eps, max_pos)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f'Warning: clipping smoothed grid failed: {e}')
 
     # Sort requested levels (user inputs via terminal)
     levels = sorted(set(float(l) for l in levels))
@@ -802,6 +812,9 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
 
     ax.set_xscale('log')
     ax.set_yscale('log')
+    
+    ax.axvspan(0.72, ax.get_xlim()[1], color='grey', alpha=0.3, zorder=5, label=r'$C_{Zh} > 0.72$')
+    
     # Force y-axis range as requested
     try:
         ax.set_ylim(1e-7, 100.0)
@@ -812,11 +825,22 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
     if title is None:
         title = 'Sensitivity Contours: Expected Signal Events'
     ax.set_title(title, fontsize=18)
-    # Increase tick label sizes and enable minor ticks for log axes
+    # Use default Matplotlib tick locators; only adjust label sizes.
+    ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.tick_params(axis='both', which='minor', labelsize=12)
+    ax.minorticks_on()
     try:
-        ax.tick_params(axis='both', which='major', labelsize=14)
-        ax.tick_params(axis='both', which='minor', labelsize=12)
-        ax.minorticks_on()
+        # High numticks ensures Matplotlib won't drop ticks due to internal limits
+        ax.xaxis.set_major_locator(mticker.LogLocator(base=10.0, numticks=999))
+        ax.yaxis.set_major_locator(mticker.LogLocator(base=10.0, numticks=999))
+        # Force subs=np.arange(2, 10) instead of 'auto' so it cannot skip drawing them
+        ax.xaxis.set_minor_locator(mticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=999))
+        ax.yaxis.set_minor_locator(mticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=999))
+        # Ensure no numbers are printed on the minor ticks
+        ax.xaxis.set_minor_formatter(mticker.NullFormatter())
+        ax.yaxis.set_minor_formatter(mticker.NullFormatter())
+        # Reduce length from 6 to 3 so the minor ticks aren't huge
+        ax.tick_params(axis='both', which='minor', length=3, width=0.6)
     except Exception:
         pass
     # Show major and minor grid lines on both axes (including y log-grid)
@@ -1216,14 +1240,33 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
             has_4 = any(np.isclose(levels, 4.0))
 
             cs = None
+            # choose z-order so that ANUBIS dataset contours are plotted above MATHUSLA and LHC
+            try:
+                grp_lower = grp.lower() if isinstance(grp, str) else ''
+                if ('anubis' in grp_lower) or ('higgs_signal' in grp_lower) or ('higgs_signal_events' in grp_lower) or ('higgs_signal_events_data' in grp_lower):
+                    z_cs = 260 + idx
+                    z_cs4 = 270 + idx
+                elif 'mathusla' in grp_lower:
+                    z_cs = 220 + idx
+                    z_cs4 = 230 + idx
+                elif 'lhc' in grp_lower or 'atlas' in grp_lower or 'cms' in grp_lower:
+                    z_cs = 200 + idx
+                    z_cs4 = 210 + idx
+                else:
+                    z_cs = 60 + idx
+                    z_cs4 = 70 + idx
+            except Exception:
+                z_cs = 60 + idx
+                z_cs4 = 70 + idx
+
             if len(levels_non4) > 0:
-                cs = ax.contour(GX, GY, GZ, levels=levels_non4, colors=[color], linewidths=1.8, linestyles=linestyle, zorder=60 + idx)
+                cs = ax.contour(GX, GY, GZ, levels=levels_non4, colors=[color], linewidths=1.8, linestyles=linestyle, zorder=z_cs)
 
             # highlight the 4.0 level if present (single thicker line)
             cs4 = None
             if has_4:
                 try:
-                    cs4 = ax.contour(GX, GY, GZ, levels=[4.0], colors=[color], linewidths=3.2, linestyles=linestyle, zorder=70 + idx)
+                    cs4 = ax.contour(GX, GY, GZ, levels=[4.0], colors=[color], linewidths=3.2, linestyles=linestyle, zorder=z_cs4)
                 except Exception:
                     cs4 = None
 
@@ -1299,11 +1342,14 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
             else:
                 legend = ax.legend(handles=exp_handles, loc='lower left', title='Limits', framealpha=0.9, edgecolor='grey', prop={'size':14}, title_fontsize=14)
             legend.set_zorder(100)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f'Warning: overlaying experimental contour handles failed: {e}')
 
     ax.set_xscale('log')
     ax.set_yscale('log')
+    
+    ax.axvspan(0.72, ax.get_xlim()[1], color='grey', alpha=0.3, zorder=5, label=r'$C_{Zh} > 0.72$')
+    
     # Force y-axis range as requested
     try:
         ax.set_ylim(1e-7, 100.0)
@@ -1314,11 +1360,22 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
     if title is None:
         title = 'Sensitivity Contours (overlaid BR scans)'
     ax.set_title(title, fontsize=18)
-    # Increase tick label sizes and enable minor ticks for log axes
+    # Use default Matplotlib tick locators; only adjust label sizes.
+    ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.tick_params(axis='both', which='minor', labelsize=12)
+    ax.minorticks_on()
     try:
-        ax.tick_params(axis='both', which='major', labelsize=14)
-        ax.tick_params(axis='both', which='minor', labelsize=12)
-        ax.minorticks_on()
+        # High numticks ensures Matplotlib won't drop ticks due to internal limits
+        ax.xaxis.set_major_locator(mticker.LogLocator(base=10.0, numticks=999))
+        ax.yaxis.set_major_locator(mticker.LogLocator(base=10.0, numticks=999))
+        # Force subs=np.arange(2, 10) instead of 'auto' so it cannot skip drawing them
+        ax.xaxis.set_minor_locator(mticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=999))
+        ax.yaxis.set_minor_locator(mticker.LogLocator(base=10.0, subs=np.arange(2, 10), numticks=999))
+        # Ensure no numbers are printed on the minor ticks
+        ax.xaxis.set_minor_formatter(mticker.NullFormatter())
+        ax.yaxis.set_minor_formatter(mticker.NullFormatter())
+        # Reduce length from 6 to 3 so the minor ticks aren't huge
+        ax.tick_params(axis='both', which='minor', length=3, width=0.6)
     except Exception:
         pass
     # Show major and minor grid lines on both axes (including y log-grid)
@@ -1345,7 +1402,7 @@ def main():
     # Contour levels to draw by default
     levels = [4.0]
     # Gaussian smoothing sigma (log-grid units)
-    sigma = 0.0
+    sigma = 20.0
     # Use log scales by default
     use_log = True
     # Expand potential glob patterns or detect per-BR CSVs in the Plots folder
