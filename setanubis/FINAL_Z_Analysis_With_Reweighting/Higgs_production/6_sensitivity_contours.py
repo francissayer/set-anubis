@@ -32,6 +32,13 @@ except Exception:
     LinearNDInterpolator = None
     gaussian_filter = None
     ConvexHull = None
+    
+# ATLAS style for plots
+import mplhep as hep
+# Set the ATLAS style
+plt.style.use(hep.style.ATLAS) 
+# # Add the ATLAS label
+# hep.atlas.label(label="Internal", data=True, lumi=139)
 
 
 def prepare_grid_from_csv(csv_path: str, value_column: str = 'N_signal'):
@@ -402,7 +409,7 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
     ax.set_xscale('log')
     ax.set_yscale('log')
     ax.set_xlabel('ALP Mass [GeV]', fontsize=12)
-    ax.set_ylabel(r'Coupling $C_{a\phi}$', fontsize=12)
+    ax.set_ylabel(r'Coupling $C_{a\Phi}$', fontsize=12)
     if title is None:
         title = 'Sensitivity Contours: Expected Signal Events'
     ax.set_title(title, fontsize=14)

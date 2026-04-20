@@ -33,6 +33,27 @@ except Exception:
     gaussian_filter = None
     ConvexHull = None
 
+# # Matching LATEX fonts in plot generation
+# import matplotlib as mpl
+
+# mpl.rcParams.update({
+#     "text.usetex": True,
+#     "font.family": "serif",
+#     "font.serif": ["Computer Modern Roman"],
+#     "axes.labelsize": 11,   # Matches your 11pt LaTeX font
+#     "font.size": 11,
+#     "legend.fontsize": 9,
+#     "xtick.labelsize": 9,
+#     "ytick.labelsize": 9,
+# })
+
+
+# ATLAS style for plots
+import mplhep as hep
+# Set the ATLAS style
+plt.style.use(hep.style.ATLAS) 
+# # Add the ATLAS label
+# hep.atlas.label(label="Internal", data=True, lumi=139)
 
 def _tab10_color_by_index(idx: int):
     """Return a reproducible color from the `tab10` colormap by integer index.
@@ -821,7 +842,7 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
     except Exception:
         pass
     ax.set_xlabel('ALP Mass [GeV]', fontsize=16)
-    ax.set_ylabel(r'Coupling $C_{a\phi}$', fontsize=16)
+    ax.set_ylabel(r'Coupling $C_{a\Phi}$', fontsize=16)
     if title is None:
         title = 'Sensitivity Contours: Expected Signal Events'
     ax.set_title(title, fontsize=18)
@@ -1356,7 +1377,7 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
     except Exception:
         pass
     ax.set_xlabel('Effective $C_{Zh}$', fontsize=16)
-    ax.set_ylabel(r'Coupling $C_{a\phi}$', fontsize=16)
+    ax.set_ylabel(r'Coupling $C_{a\Phi}$', fontsize=16)
     if title is None:
         title = 'Sensitivity Contours (overlaid BR scans)'
     ax.set_title(title, fontsize=18)
@@ -1453,7 +1474,7 @@ def main():
             pass
 
         title_base = 'Expected Signal Events for Fermion-Coupled ALPs, $pp\\to H \\to Z a$\n'
-        title = title_base + czh_text + ' — includes MATHUSLA & LHC limits'
+        title = title_base + czh_text + ' — includes MATHUSLA \\& LHC limits'
         # Draw only the 4-event overlay level for comparison
         levels_overlay = [4.0]
         plot_sensitivity_contours_overlay(csv_list, levels_overlay, output_path, title=title,
@@ -1485,7 +1506,7 @@ def main():
             pass
 
         title_base = 'Expected Signal Events for Fermion-Coupled ALPs, $pp\\to H \\to Z a$'
-        title = title_base + czh_text + ' — includes MATHUSLA & LHC limits'
+        title = title_base + czh_text + ' — includes MATHUSLA \\& LHC limits'
 
         plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
               title=title,
