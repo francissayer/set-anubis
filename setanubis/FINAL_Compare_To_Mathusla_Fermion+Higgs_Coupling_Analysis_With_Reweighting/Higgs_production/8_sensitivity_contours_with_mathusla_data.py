@@ -282,9 +282,12 @@ def _collect_experiment_contour_handles(ax, base_dir=None, patterns=None):
 
     if patterns is None:
         # third element is an index into the `tab10` colormap for consistent colors
+        # Include both original MATHUSLA (treated as MATHUSLA200) and
+        # the MATHUSLA40 dataset so they can be ordered separately.
         patterns = [
             ('LHC', 'LHC_BR_*.csv', 0),
-            ('MATHUSLA', 'MATHUSLA_BR_*.csv', 1),
+            ('MATHUSLA200', 'MATHUSLA_BR_*.csv', 1),
+            ('MATHUSLA40', 'MATHUSLA40_BR_*.csv', 1),
             ('ANUBIS', 'ANUBIS_BR_*.csv', 2),
         ]
 
@@ -394,6 +397,9 @@ def _collect_experiment_contour_handles(ax, base_dir=None, patterns=None):
             d_up = str(dataset).upper() if dataset is not None else ''
             if d_up.startswith('LHC'):
                 plot_color = 'green'
+            elif d_up.startswith('MATHUSLA40'):
+                # Distinct, high-visibility color for MATHUSLA40
+                plot_color = 'orange'
             elif d_up.startswith('MATHUSLA'):
                 plot_color = 'red'
             elif d_up.startswith('ANUBIS'):
@@ -408,10 +414,13 @@ def _collect_experiment_contour_handles(ax, base_dir=None, patterns=None):
                     else:
                         plot_color = _tab10_color_by_index(0)
 
-            # choose z-order so ANUBIS contours plot above MATHUSLA and LHC
+            # choose z-order so ANUBIS contours plot above MATHUSLA40, which
+            # plots above the original MATHUSLA (MATHUSLA200), then LHC
             dname = str(dataset).upper() if dataset is not None else ''
             if dname.startswith('ANUBIS'):
                 zord = 220
+            elif dname.startswith('MATHUSLA40'):
+                zord = 200
             elif dname.startswith('MATHUSLA'):
                 zord = 180
             elif dname.startswith('LHC'):
@@ -453,8 +462,11 @@ def _collect_experiment_contour_handles(ax, base_dir=None, patterns=None):
                         dataset_paths[d_up] = []
                         dataset_colors[d_up] = plot_color
                         # Determine z-order for fills (below the lines, but maintaining depth order)
+                        # Place MATHUSLA40 fills slightly above the original MATHUSLA200
                         if d_up.startswith('ANUBIS'):
                             fill_zord = 115
+                        elif d_up.startswith('MATHUSLA40'):
+                            fill_zord = 113
                         elif d_up.startswith('MATHUSLA'):
                             fill_zord = 110
                         elif d_up.startswith('LHC'):
@@ -825,13 +837,7 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
                     coll.set_path_effects([path_effects.withStroke(linewidth=coll.get_linewidth() + 3, foreground='white')])
             
             # REMOVED INLINE CLABEL:
-            # try:
-            #     ax.clabel(cs_obj, fmt='%g', inline=True, fontsize=8, colors='k')
-            # except Exception:
-            #     pass
-        # ---------------------------------------------------------
-        # Build a dynamic legend instead of inline contour labels
-        # ---------------------------------------------------------
+            pass
         legend_handles = []
         
         # Add handles for standard contour levels
@@ -1325,8 +1331,14 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
         grp = base_name.split('_BR_')[0]
         # If this is the higgs signal dataset, treat it as ANUBIS (blue)
         try:
-            if 'higgs_signal_events_data' in grp.lower():
+            grp_lower = grp.lower() if isinstance(grp, str) else ''
+            if 'higgs_signal_events_data' in grp_lower:
                 color = 'blue'
+            elif grp_lower == 'mathusla40':
+                # Use a distinct color for MATHUSLA40 overlays
+                color = 'orange'
+            elif grp_lower == 'mathusla' or grp_lower == 'mathusla200':
+                color = 'red'
             else:
                 cidx = group_to_color_idx.get(grp, idx)
                 color = _tab10_color_by_index(cidx)
@@ -1366,9 +1378,14 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
             # choose z-order so that ANUBIS dataset contours are plotted above MATHUSLA and LHC
             try:
                 grp_lower = grp.lower() if isinstance(grp, str) else ''
+                # Order: ANUBIS highest, then MATHUSLA40, then original MATHUSLA (renamed MATHUSLA200), then LHC
                 if ('anubis' in grp_lower) or ('higgs_signal' in grp_lower) or ('higgs_signal_events' in grp_lower) or ('higgs_signal_events_data' in grp_lower):
                     z_cs = 260 + idx
                     z_cs4 = 270 + idx
+                elif 'mathusla40' in grp_lower:
+                    # place MATHUSLA40 above original mathusla but below ANUBIS
+                    z_cs = 240 + idx
+                    z_cs4 = 250 + idx
                 elif 'mathusla' in grp_lower:
                     z_cs = 220 + idx
                     z_cs4 = 230 + idx
@@ -1423,7 +1440,13 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
             if 'higgs_signal_events_data' in grp_lower:
                 grp_display = 'ANUBIS'
             else:
-                grp_display = grp
+                # Map original MATHUSLA prefix to MATHUSLA200 for clarity
+                if grp_lower == 'mathusla' or grp_lower == 'mathusla200':
+                    grp_display = 'MATHUSLA200'
+                elif grp_lower == 'mathusla40':
+                    grp_display = 'MATHUSLA40'
+                else:
+                    grp_display = grp
 
             # Use group display name only (do not append BR label)
             legend_label = grp_display
@@ -1636,7 +1659,7 @@ def main():
             pass
 
         title_base = 'Expected Signal Events for Fermion-Coupled ALPs, $pp\\to H \\to Z a$\n'
-        title = title_base + czh_text + ' — includes MATHUSLA \\& LHC limits'
+        title = title_base + czh_text + ' — includes MATHUSLA & LHC limits'
         # Draw only the 4-event overlay level for comparison
         levels_overlay = [4.0]
         plot_sensitivity_contours_overlay(csv_list, levels_overlay, output_path, title=title,
@@ -1668,7 +1691,7 @@ def main():
             pass
 
         title_base = 'Expected Signal Events for Fermion-Coupled ALPs, $pp\\to H \\to Z a$'
-        title = title_base + czh_text + ' — includes MATHUSLA \\& LHC limits'
+        title = title_base + czh_text + ' — includes MATHUSLA & LHC limits'
 
         plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
               title=title,
