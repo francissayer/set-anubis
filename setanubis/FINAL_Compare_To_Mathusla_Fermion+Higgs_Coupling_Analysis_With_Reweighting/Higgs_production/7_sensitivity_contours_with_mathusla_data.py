@@ -931,9 +931,39 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
         ax.tick_params(axis='both', which='minor', length=3, width=0.6)
     except Exception:
         pass
-    # Show major and minor grid lines on both axes (including y log-grid)
-    ax.grid(which='major', axis='both', alpha=0.45, linestyle='--', linewidth=0.6)
-    ax.grid(which='minor', axis='both', alpha=0.25, linestyle=':', linewidth=0.4)
+
+    # --- FIX: Bring spines and ticks to front, but strictly keep gridlines below data ---
+    
+    # Turn off default grid to decouple it from the axes' high zorder container
+    ax.grid(False) 
+
+    # Fetch limits to bound manual lines and prevent plot stretching
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+
+    # Draw manual gridlines as standalone artists at the very back
+    for x in ax.get_xticks(minor=False):
+        ax.axvline(x, color='grey', alpha=0.45, linestyle='--', linewidth=0.6, zorder=1.5)
+    for x in ax.get_xticks(minor=True):
+        ax.axvline(x, color='grey', alpha=0.25, linestyle=':', linewidth=0.4, zorder=1.5)
+        
+    for y in ax.get_yticks(minor=False):
+        ax.axhline(y, color='grey', alpha=0.45, linestyle='--', linewidth=0.6, zorder=1.5)
+    for y in ax.get_yticks(minor=True):
+        ax.axhline(y, color='grey', alpha=0.25, linestyle=':', linewidth=0.4, zorder=1.5)
+
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+
+    # Now that gridlines are independent, we can safely force the entire 
+    # axis container (ticks, labels, spines) to render on top of the data
+    ax.set_axisbelow(False)
+    for spine in ax.spines.values():
+        spine.set_zorder(10000)
+    ax.xaxis.set_zorder(10000)
+    ax.yaxis.set_zorder(10000)
+    ax.tick_params(axis='both', which='both', zorder=10000)
+
     plt.tight_layout()
 
     out_path = Path(output_path)
@@ -1501,9 +1531,39 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
         ax.tick_params(axis='both', which='minor', length=3, width=0.6)
     except Exception:
         pass
-    # Show major and minor grid lines on both axes (including y log-grid)
-    ax.grid(which='major', axis='both', alpha=0.45, linestyle='--', linewidth=0.6)
-    ax.grid(which='minor', axis='both', alpha=0.25, linestyle=':', linewidth=0.4)
+
+    # --- FIX: Bring spines and ticks to front, but strictly keep gridlines below data ---
+    
+    # Turn off default grid to decouple it from the axes' high zorder container
+    ax.grid(False) 
+
+    # Fetch limits to bound manual lines and prevent plot stretching
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+
+    # Draw manual gridlines as standalone artists at the very back
+    for x in ax.get_xticks(minor=False):
+        ax.axvline(x, color='grey', alpha=0.45, linestyle='--', linewidth=0.6, zorder=1.5)
+    for x in ax.get_xticks(minor=True):
+        ax.axvline(x, color='grey', alpha=0.25, linestyle=':', linewidth=0.4, zorder=1.5)
+        
+    for y in ax.get_yticks(minor=False):
+        ax.axhline(y, color='grey', alpha=0.45, linestyle='--', linewidth=0.6, zorder=1.5)
+    for y in ax.get_yticks(minor=True):
+        ax.axhline(y, color='grey', alpha=0.25, linestyle=':', linewidth=0.4, zorder=1.5)
+
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+
+    # Now that gridlines are independent, we can safely force the entire 
+    # axis container (ticks, labels, spines) to render on top of the data
+    ax.set_axisbelow(False)
+    for spine in ax.spines.values():
+        spine.set_zorder(10000)
+    ax.xaxis.set_zorder(10000)
+    ax.yaxis.set_zorder(10000)
+    ax.tick_params(axis='both', which='both', zorder=10000)
+
     plt.tight_layout()
 
     out_path = Path(output_path)
