@@ -21,6 +21,7 @@ import matplotlib.colors as colors
 import matplotlib.patheffects as path_effects
 from matplotlib.lines import Line2D
 from matplotlib.path import Path as MplPath
+import matplotlib.patches as mpatches
 import re
 import matplotlib.ticker as mticker
 try:
@@ -290,6 +291,12 @@ def _collect_experiment_contour_handles(ax, base_dir=None, patterns=None):
     color_map = plt.get_cmap('tab10')
 
     handles = []
+    
+    # --- NEW: Dictionaries to store paths for merged filling ---
+    dataset_paths = {}
+    dataset_colors = {}
+    dataset_zords = {}
+
     # (no explicit label placement by default)
     for dataset, pattern, color in patterns:
         # search both the base_dir and its 'Plots' subdirectory for experiment CSVs
@@ -418,6 +425,57 @@ def _collect_experiment_contour_handles(ax, base_dir=None, patterns=None):
                 handles.append(Line2D([0], [0], color=plot_color, lw=lw, linestyle=linestyle, label=label))
             # For BR<1: intentionally do not place inline labels or use
             # explicit label_positions — user will add BR labels later.
+            
+            # --- NEW: Only fill external limits for BR=1 to prevent donut-hole subtractions ---
+            if is_br1:
+                x_fill = np.array(x, dtype=float)
+                y_fill = np.array(y, dtype=float)
+
+                # LHC fix: stretch to the top-right of the plot to bound the excluded area properly
+                # Using 1e5 to prevent extreme log-scale auto-scaling issues
+                if 'LHC' in d_up:
+                    x_fill = np.append(x_fill, 1e5)
+                    y_fill = np.append(y_fill, 1e5)
+
+                valid = np.isfinite(x_fill) & np.isfinite(y_fill)
+                x_fill = x_fill[valid]
+                y_fill = y_fill[valid]
+
+                if len(x_fill) > 2:
+                    verts = np.column_stack((x_fill, y_fill))
+                    codes = np.full(len(verts), MplPath.LINETO)
+                    codes[0] = MplPath.MOVETO
+                    # Close the polygon back to the first point
+                    verts = np.vstack((verts, [verts[0][0], verts[0][1]]))
+                    codes = np.append(codes, MplPath.CLOSEPOLY)
+
+                    if d_up not in dataset_paths:
+                        dataset_paths[d_up] = []
+                        dataset_colors[d_up] = plot_color
+                        # Determine z-order for fills (below the lines, but maintaining depth order)
+                        if d_up.startswith('ANUBIS'):
+                            fill_zord = 115
+                        elif d_up.startswith('MATHUSLA'):
+                            fill_zord = 110
+                        elif d_up.startswith('LHC'):
+                            fill_zord = 105
+                        else:
+                            fill_zord = 100
+                        dataset_zords[d_up] = fill_zord
+
+                    dataset_paths[d_up].append((verts, codes))
+
+    # --- NEW: Draw the merged background fills ---
+    for d_up, paths_data in dataset_paths.items():
+        if not paths_data:
+            continue
+        all_verts = np.concatenate([v for v, c in paths_data])
+        all_codes = np.concatenate([c for v, c in paths_data])
+        # Using a compound path causes matplotlib to render all overlapping shapes for the dataset
+        # as a single geometric union, preventing alpha buildup in overlap regions!
+        compound_path = MplPath(all_verts, all_codes)
+        patch = mpatches.PathPatch(compound_path, facecolor=dataset_colors[d_up], edgecolor='none', alpha=0.15, zorder=dataset_zords[d_up])
+        ax.add_patch(patch)
 
     return handles
 
@@ -798,7 +856,16 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
         # - BR==1: solid, thicker; BR<1: dotted
         # ---------------------------------------------------------
         try:
+            # --- FIX: Capture and restore axes limits to prevent the LHC fill patch from squishing the data ---
+            xlim_before = ax.get_xlim()
+            ylim_before = ax.get_ylim()
+
             exp_handles = _collect_experiment_contour_handles(ax, base_dir=os.path.dirname(__file__))
+
+            # Restore the limits immediately
+            ax.set_xlim(xlim_before)
+            ax.set_ylim(ylim_before)
+
             if exp_handles:
                 # sanitize experimental handle labels to avoid raw filenames leaking
                 try:
@@ -928,6 +995,11 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
     # choose colors for overlay contours and prepare legend handles
     color_map = plt.get_cmap('tab10')
     legend_handles = []
+
+    # --- NEW: Dicts to group masks for filling to avoid alpha buildup ---
+    group_masks = {}
+    group_colors = {}
+    group_zords = {}
 
     # Precompute interpolated grids for each dataset so we can draw a
     # combined background heatmap (use nanmax across datasets).
@@ -1288,6 +1360,19 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
             if has_4:
                 try:
                     cs4 = ax.contour(GX, GY, GZ, levels=[4.0], colors=[color], linewidths=3.2, linestyles=linestyle, zorder=z_cs4)
+                    
+                    # --- NEW: Accumulate the mask to fill the main dataset contours ---
+                    mask = np.isfinite(GZ) & (GZ >= 4.0)
+                    if np.any(mask):
+                        if grp not in group_masks:
+                            group_masks[grp] = mask
+                            group_colors[grp] = color
+                            # Place the fill right below its contour lines
+                            group_zords[grp] = z_cs4 - 5
+                        else:
+                            # Logical OR to merge all BR regions for this dataset!
+                            group_masks[grp] = group_masks[grp] | mask
+
                 except Exception:
                     cs4 = None
 
@@ -1328,6 +1413,14 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
             except Exception:
                 pass
 
+    # --- NEW: Draw the unified filled regions for each main dataset group ---
+    for grp_fill, mask_fill in group_masks.items():
+        try:
+            mask_float = np.where(mask_fill, 1.0, np.nan)
+            ax.contourf(GX, GY, mask_float, levels=[0.5, 1.5], colors=[group_colors[grp_fill]], alpha=0.15, zorder=group_zords[grp_fill])
+        except Exception as e:
+            print(f"Warning: failed to draw filled contour for group {grp_fill}: {e}")
+
     # draw legend (no unified colorbar — contours convey the 4-event boundary per BR)
     if legend_handles:
         legend = ax.legend(handles=legend_handles, loc='lower left', title='Datasets (BR)', framealpha=0.9, edgecolor='grey', prop={'size':14}, title_fontsize=14)
@@ -1338,7 +1431,16 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
     # - BR==1: solid, thicker; BR<1: dotted
     # ---------------------------------------------------------
     try:
+        # --- FIX: Capture and restore axes limits to prevent the LHC fill patch from squishing the data ---
+        xlim_before = ax.get_xlim()
+        ylim_before = ax.get_ylim()
+
         exp_handles = _collect_experiment_contour_handles(ax, base_dir=os.path.dirname(__file__))
+
+        # Restore the limits immediately
+        ax.set_xlim(xlim_before)
+        ax.set_ylim(ylim_before)
+
         if exp_handles:
             # sanitize experimental handle labels to avoid raw filenames leaking
             try:
