@@ -48,7 +48,6 @@ def calculate_couplings(input_csv, output_csv, BR_muon, Lambda_scale=1000.0, fa_
     # ==========================================
     m_h = ns['MH']      # Higgs mass (from UFO parameters)
     m_Z = ns['MZ']      # Z boson mass (from UFO parameters)
-    m_a = 15.0          # ALP mass (from MATHUSLA plot)
     m_mu = 0.10566          # Muon mass (mass of b-quark from UFO)
     
     # Standard Model Higgs total width (approx 4.07 MeV)
@@ -57,8 +56,8 @@ def calculate_couplings(input_csv, output_csv, BR_muon, Lambda_scale=1000.0, fa_
     # Conversion factor: hbar * c in GeV * m
     hbar_c = 1.973269804e-16
     
-    # Scaling factor derived for BR(h -> Za) based on multiplicity and kinematics
-    BR_scaling_factor = 2 * ( (m_h**2 - m_Z**2 + m_a**2)/(2*m_h) ) * ( m_h / 2)**(-1)
+    # Scaling factor derived for BR(h -> Za) based on multiplicity
+    BR_scaling_factor = 2
     
     # ==========================================
     # Load Data
@@ -76,6 +75,23 @@ def calculate_couplings(input_csv, output_csv, BR_muon, Lambda_scale=1000.0, fa_
     # Ensure data is numeric
     ctau = pd.to_numeric(df['ctau_m'], errors='coerce')
     br_hxx = pd.to_numeric(df['br_hxx'], errors='coerce')
+    
+    # ==========================================
+    # 0. Kinematic Recasting (Lorentz Boost Correction)
+    # ==========================================
+    m_a_orig = 15.0  # Original MATHUSLA plot mass
+    m_a = 1.0        # YOUR target mass
+
+    # Original process was h -> aa. Energy is m_h / 2.
+    E_a_orig = m_h / 2.0
+    gamma_orig = E_a_orig / m_a_orig
+
+    # Target process is h -> Za. 
+    E_a_target = (m_h**2 - m_Z**2 + m_a**2) / (2 * m_h)
+    gamma_target = E_a_target / m_a
+    
+    # Scale the input ctau so the lab-frame decay length matches
+    ctau_scaled = ctau * (gamma_orig / gamma_target)
     
     # ==========================================
     # 1. Calculate C_zh (ALP-Higgs coupling)
@@ -101,7 +117,7 @@ def calculate_couplings(input_csv, output_csv, BR_muon, Lambda_scale=1000.0, fa_
     # 2. Calculate C_aphi (ALP-fermion coupling)
     # ==========================================
     # Convert c*tau (meters) to decay width Gamma(a -> bb) (GeV)
-    Gamma_total = hbar_c / ctau
+    Gamma_total = hbar_c / ctau_scaled
     Gamma_mu = BR_muon * Gamma_total
     
     # Phase space factor for a -> mu+ mu-
