@@ -48,7 +48,7 @@ def calculate_couplings(input_csv, output_csv, BR_muon, Lambda_scale=1000.0, fa_
     # ==========================================
     m_h = ns['MH']      # Higgs mass (from UFO parameters)
     m_Z = ns['MZ']      # Z boson mass (from UFO parameters)
-    m_mu = 0.10566          # Muon mass (mass of b-quark from UFO)
+    m_mu = 0.10566          # Muon mass (mass of muon from UFO)
     
     # Standard Model Higgs total width (approx 4.07 MeV)
     Gamma_SM_H = 4.07e-3
@@ -84,14 +84,16 @@ def calculate_couplings(input_csv, output_csv, BR_muon, Lambda_scale=1000.0, fa_
 
     # Original process was h -> aa. Energy is m_h / 2.
     E_a_orig = m_h / 2.0
-    gamma_orig = E_a_orig / m_a_orig
+    p_a_orig = np.sqrt(E_a_orig**2 - m_a_orig**2)
+    bg_orig = p_a_orig / m_a_orig  # beta * gamma
 
     # Target process is h -> Za. 
     E_a_target = (m_h**2 - m_Z**2 + m_a**2) / (2 * m_h)
-    gamma_target = E_a_target / m_a
+    p_a_target = np.sqrt(E_a_target**2 - m_a**2)
+    bg_target = p_a_target / m_a   # beta * gamma
     
     # Scale the input ctau so the lab-frame decay length matches
-    ctau_scaled = ctau * (gamma_orig / gamma_target)
+    ctau_scaled = ctau * (bg_orig / bg_target)
     
     # ==========================================
     # 1. Calculate C_zh (ALP-Higgs coupling)
