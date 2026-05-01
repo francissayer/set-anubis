@@ -80,21 +80,21 @@ def build_ufo_namespace(ufo_dir: str):
 # Channel acceptance loader removed (not needed for mu-heatmaps only flow).
 
 
-def prepare_heatmap_data_from_grid(grid_df: pd.DataFrame, value_column='N_signal'):
+def prepare_heatmap_data_from_grid(grid_df: pd.DataFrame, value_column='N_signal', x_column='mass'):
     """Prepare arrays for heatmap plotting from a DataFrame of points.
-    Expects `mass`, `CaPhi`, and `value_column` columns.
-    Returns mass_vals (sorted), caphi_vals (sorted), heatmap 2D (CaPhi x Mass).
+    Expects `x_column`, `CaPhi`, and `value_column` columns.
+    Returns x_vals (sorted), caphi_vals (sorted), heatmap 2D (CaPhi x x_column).
     """
     df = grid_df.copy()
-    mass_vals = np.sort(df['mass'].unique())
+    x_vals = np.sort(df[x_column].unique())
     caphi_vals = np.sort(df['CaPhi'].unique())
-    heat = np.full((len(caphi_vals), len(mass_vals)), np.nan)
+    heat = np.full((len(caphi_vals), len(x_vals)), np.nan)
     # fill
     for _, row in df.iterrows():
         i = int(np.searchsorted(caphi_vals, row['CaPhi']))
-        j = int(np.searchsorted(mass_vals, row['mass']))
+        j = int(np.searchsorted(x_vals, row[x_column]))
         heat[i, j] = float(row[value_column]) if not np.isnan(row[value_column]) else np.nan
-    return mass_vals, caphi_vals, heat
+    return x_vals, caphi_vals, heat
 
 
 def plot_heatmap(mass_vals, caphi_vals, heatmap_data, output_path,
@@ -458,7 +458,8 @@ def main():
                 for caphi in caphi_vals:
                     acc = acc_map_br.get((float(args.mass), float(caphi)), 0.0)
                     N_signal = lumi_pb * sigma_pb * float(br) * float(acc) * args.selection_eff * args.br_z_visible
-                    results_br.append({'mass': float(czh), 'CaPhi': float(caphi), 'BR_mu': float(br), 'acceptance': float(acc), 'cross_section_pb': float(sigma_pb), 'BR_h_to_Za': float(br_h_za), 'N_signal': float(N_signal)})
+                    # [FIXED]: Store coupling in C_Zh and preserve the fixed mass in its own column
+                    results_br.append({'C_Zh': float(czh), 'mass': float(args.mass), 'CaPhi': float(caphi), 'BR_mu': float(br), 'acceptance': float(acc), 'cross_section_pb': float(sigma_pb), 'BR_h_to_Za': float(br_h_za), 'N_signal': float(N_signal)})
 
             df_res = pd.DataFrame(results_br)
 
@@ -468,7 +469,8 @@ def main():
             print(f'Saved mumu extended data to {out_csv}')
 
             # prepare heatmap (x: C_Zh, y: CaPhi)
-            mass_vals_grid, caphi_vals_grid, heat_sig = prepare_heatmap_data_from_grid(df_res, 'N_signal')
+            # [FIXED]: Explicitly pass x_column='C_Zh'
+            mass_vals_grid, caphi_vals_grid, heat_sig = prepare_heatmap_data_from_grid(df_res, 'N_signal', x_column='C_Zh')
 
             xlabel = r'$C_{Zh}^{eff}$'
             ylabel = r'Coupling $C_{a\phi}$'

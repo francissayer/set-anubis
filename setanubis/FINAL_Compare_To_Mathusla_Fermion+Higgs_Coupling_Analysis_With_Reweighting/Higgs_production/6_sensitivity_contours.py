@@ -41,50 +41,51 @@ def prepare_grid_from_csv(csv_path: str, value_column: str = 'N_signal'):
     Parameters
     ----------
     csv_path : str
-        Path to a CSV file containing columns ``mass`` and ``CaPhi`` and
+        Path to a CSV file containing columns ``C_Zh`` and ``CaPhi`` and
         the value column to place on the grid.
     value_column : str, optional
         Name of the column to use for grid values (default ``'N_signal'``).
 
     Returns
     -------
-    mass_vals : numpy.ndarray
-        Sorted unique mass values (1D).
+    x_vals : numpy.ndarray
+        Sorted unique C_Zh values (1D).
     caphi_vals : numpy.ndarray
         Sorted unique CaPhi values (1D).
     heat : numpy.ndarray
-        2D array with shape ``(len(caphi_vals), len(mass_vals))`` containing
+        2D array with shape ``(len(caphi_vals), len(x_vals))`` containing
         the requested values or ``NaN`` for missing points. Indexed as
-        ``heat[caphi_index, mass_index]``.
+        ``heat[caphi_index, x_index]``.
 
     Notes
     -----
-    The function expects exact matches in the CSV for mass and CaPhi grid
+    The function expects exact matches in the CSV for C_Zh and CaPhi grid
     points; rows with unknown coordinates are ignored.
     """
     df = pd.read_csv(csv_path)
-    if 'mass' not in df.columns or 'CaPhi' not in df.columns:
-        raise RuntimeError(f"CSV {csv_path} must contain 'mass' and 'CaPhi' columns")
+    # [FIXED]: Strictly use C_Zh as the x-axis to match 5.py output[cite: 3]
+    if 'C_Zh' not in df.columns or 'CaPhi' not in df.columns:
+        raise RuntimeError(f"CSV {csv_path} must contain 'C_Zh' and 'CaPhi' columns")
 
-    mass_vals = np.sort(df['mass'].unique())
+    x_vals = np.sort(df['C_Zh'].unique())
     caphi_vals = np.sort(df['CaPhi'].unique())
 
-    heat = np.full((len(caphi_vals), len(mass_vals)), np.nan)
+    heat = np.full((len(caphi_vals), len(x_vals)), np.nan)
     # build index maps for robust filling
-    mass_to_idx = {m: i for i, m in enumerate(mass_vals)}
+    x_to_idx = {m: i for i, m in enumerate(x_vals)}
     caphi_to_idx = {c: i for i, c in enumerate(caphi_vals)}
 
     for _, row in df.iterrows():
-        m = float(row['mass'])
+        m = float(row['C_Zh'])
         c = float(row['CaPhi'])
         val = float(row.get(value_column, np.nan))
         i = caphi_to_idx.get(c, None)
-        j = mass_to_idx.get(m, None)
+        j = x_to_idx.get(m, None)
         if i is None or j is None:
             continue
         heat[i, j] = val
 
-    return mass_vals, caphi_vals, heat
+    return x_vals, caphi_vals, heat
 
 
 def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
@@ -95,7 +96,7 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
     Parameters
     ----------
     mass_vals : array-like
-        1D sorted array of mass grid points.
+        1D sorted array of x-axis grid points (C_Zh).
     caphi_vals : array-like
         1D sorted array of coupling grid points.
     heat : array-like
@@ -215,7 +216,7 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
     x = np.asarray(mass_vals, dtype=float)
     y = np.asarray(caphi_vals, dtype=float)
     if np.any(x <= 0) or np.any(y <= 0):
-        raise RuntimeError('Mass and CaPhi must be positive to perform log-space interpolation.')
+        raise RuntimeError('X-axis and CaPhi must be positive to perform log-space interpolation.')
 
     # Prepare log-space arrays
     xlog = np.log10(x)
@@ -366,12 +367,6 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
             else:
                 for coll in cs_obj.collections:
                     coll.set_path_effects([path_effects.withStroke(linewidth=coll.get_linewidth() + 3, foreground='white')])
-            
-            # REMOVED INLINE CLABEL:
-            # try:
-            #     ax.clabel(cs_obj, fmt='%g', inline=True, fontsize=8, colors='k')
-            # except Exception:
-            #     pass
 
         _apply_to_contour(cs_main)
         _apply_to_contour(cs4)
@@ -402,7 +397,8 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
 
     ax.set_xscale('log')
     ax.set_yscale('log')
-    ax.set_xlabel('ALP Mass [GeV]', fontsize=12)
+    # [FIXED]: Explicitly label the x-axis for C_Zh scans[cite: 3, 4]
+    ax.set_xlabel(r'Effective $C_{Zh}$', fontsize=12)
     ax.set_ylabel(r'Coupling $C_{a\phi}$', fontsize=12)
     if title is None:
         title = 'Sensitivity Contours: Expected Signal Events'
@@ -427,7 +423,7 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
                                       dpi=300, smooth_sigma=0.0, nx_grid=1000, ny_grid=1000):
     """
     Overlay contour lines from multiple CSV grids on the same C_Zh (x) vs CaPhi (y)
-    plot. Each CSV is expected to contain columns `mass` (here: C_Zh), `CaPhi`, and
+    plot. Each CSV is expected to contain columns `C_Zh`, `CaPhi`, and
     `N_signal` forming a complete rectangular grid. The function interpolates in
     log-log space (using SciPy's LinearNDInterpolator) and draws contours for the
     requested `levels` for each CSV, labeling them by BR (extracted from the
@@ -447,7 +443,7 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
 
     # create evaluation grid in log-space spanning union range
     if np.any(union_mass <= 0) or np.any(union_caphi <= 0):
-        raise RuntimeError('Mass (C_Zh) and CaPhi must be positive for log-space interpolation.')
+        raise RuntimeError('C_Zh and CaPhi must be positive for log-space interpolation.')
 
     LOGX = np.linspace(np.log10(float(union_mass.min())), np.log10(float(union_mass.max())), nx_grid)
     LOGY = np.linspace(np.log10(float(union_caphi.min())), np.log10(float(union_caphi.max())), ny_grid)
@@ -631,12 +627,12 @@ def main():
 
     if len(csv_list) > 1:
         print(f'Found multiple CSVs: {csv_list} -> overlaying BR contours on same plot')
-        # Append optional title coupling text if available in the first CSV
+        # [FIXED]: Metadata parsing using 'C_Zh' verbatim[cite: 3, 4]
         czh_text = ''
         try:
             df_full = pd.read_csv(csv_list[0])
-            if 'C_Zh_eff' in df_full.columns:
-                unique_vals = pd.unique(df_full['C_Zh_eff'])
+            if 'C_Zh' in df_full.columns:
+                unique_vals = pd.unique(df_full['C_Zh'])
                 try:
                     fv = sorted([float(v) for v in unique_vals])
                 except Exception:
@@ -658,16 +654,17 @@ def main():
         plot_sensitivity_contours_overlay(csv_list, levels_overlay, args.output, title=title,
                           use_log_scale=args.use_log, smooth_sigma=args.sigma)
     else:
+        # [FIXED]: Mapping based on C_Zh column[cite: 3]
         mass_vals, caphi_vals, heat = prepare_grid_from_csv(csv_list[0], 'N_signal')
-        print(f'Loaded {len(mass_vals)} mass points × {len(caphi_vals)} coupling points from {csv_list[0]}')
+        print(f'Loaded {len(mass_vals)} C_Zh points × {len(caphi_vals)} coupling points from {csv_list[0]}')
         print(f'Plotting contours at levels: {levels} -> saving to {args.output}')
 
-        # Try to extract the Higgs coupling `C_Zh_eff` from the CSV and append to title
+        # Try to extract the Higgs coupling `C_Zh` from the CSV and append to title
         czh_text = ''
         try:
             df_full = pd.read_csv(csv_list[0])
-            if 'C_Zh_eff' in df_full.columns:
-                unique_vals = pd.unique(df_full['C_Zh_eff'])
+            if 'C_Zh' in df_full.columns:
+                unique_vals = pd.unique(df_full['C_Zh'])
                 try:
                     fv = sorted([float(v) for v in unique_vals])
                 except Exception:

@@ -221,7 +221,7 @@ def prepare_grid_from_csv(csv_path: str, value_column: str = 'N_signal'):
     Parameters
     ----------
     csv_path : str
-        Path to a CSV file containing columns ``mass`` and ``CaPhi`` and
+        Path to a CSV file containing columns ``C_Zh`` and ``CaPhi`` and
         the value column to place on the grid.
     value_column : str, optional
         Name of the column to use for grid values (default ``'N_signal'``).
@@ -229,7 +229,7 @@ def prepare_grid_from_csv(csv_path: str, value_column: str = 'N_signal'):
     Returns
     -------
     mass_vals : numpy.ndarray
-        Sorted unique mass values (1D).
+        Sorted unique C_Zh values (1D).
     caphi_vals : numpy.ndarray
         Sorted unique CaPhi values (1D).
     heat : numpy.ndarray
@@ -239,14 +239,14 @@ def prepare_grid_from_csv(csv_path: str, value_column: str = 'N_signal'):
 
     Notes
     -----
-    The function expects exact matches in the CSV for mass and CaPhi grid
+    The function expects exact matches in the CSV for C_Zh and CaPhi grid
     points; rows with unknown coordinates are ignored.
     """
     df = pd.read_csv(csv_path)
-    if 'mass' not in df.columns or 'CaPhi' not in df.columns:
-        raise RuntimeError(f"CSV {csv_path} must contain 'mass' and 'CaPhi' columns")
+    if 'C_Zh' not in df.columns or 'CaPhi' not in df.columns:
+        raise RuntimeError(f"CSV {csv_path} must contain 'C_Zh' and 'CaPhi' columns")
 
-    mass_vals = np.sort(df['mass'].unique())
+    mass_vals = np.sort(df['C_Zh'].unique())
     caphi_vals = np.sort(df['CaPhi'].unique())
 
     heat = np.full((len(caphi_vals), len(mass_vals)), np.nan)
@@ -255,7 +255,7 @@ def prepare_grid_from_csv(csv_path: str, value_column: str = 'N_signal'):
     caphi_to_idx = {c: i for i, c in enumerate(caphi_vals)}
 
     for _, row in df.iterrows():
-        m = float(row['mass'])
+        m = float(row['C_Zh'])
         c = float(row['CaPhi'])
         val = float(row.get(value_column, np.nan))
         i = caphi_to_idx.get(c, None)
@@ -500,7 +500,7 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
     Parameters
     ----------
     mass_vals : array-like
-        1D sorted array of mass grid points.
+        1D sorted array of C_Zh grid points.
     caphi_vals : array-like
         1D sorted array of coupling grid points.
     heat : array-like
@@ -598,7 +598,7 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
     x = np.asarray(mass_vals, dtype=float)
     y = np.asarray(caphi_vals, dtype=float)
     if np.any(x <= 0) or np.any(y <= 0):
-        raise RuntimeError('Mass and CaPhi must be positive to perform log-space interpolation.')
+        raise RuntimeError('C_Zh and CaPhi must be positive to perform log-space interpolation.')
 
     # Prepare log-space arrays
     xlog = np.log10(x)
@@ -914,7 +914,7 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
         ax.set_ylim(1e-7, 100.0)
     except Exception:
         pass
-    ax.set_xlabel('ALP Mass [GeV]', fontsize=16)
+    ax.set_xlabel('Effective $C_{Zh}$', fontsize=16)
     ax.set_ylabel(r'Coupling $C_{a\Phi}$', fontsize=16)
     if title is None:
         title = 'Sensitivity Contours: Expected Signal Events'
@@ -989,8 +989,8 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
                                       dpi=300, smooth_sigma=0.0, draw_heatmap=False, nx_grid=1000, ny_grid=1000):
     """
     Overlay contour lines from multiple CSV grids on the same C_Zh (x) vs CaPhi (y)
-    plot. Each CSV is expected to contain columns `mass` (here: C_Zh), `CaPhi`, and
-    `N_signal` forming a complete rectangular grid. The function interpolates in
+    plot. Each CSV is expected to contain columns ``C_Zh``, ``CaPhi``, and
+    ``N_signal`` forming a complete rectangular grid. The function interpolates in
     log-log space (using SciPy's LinearNDInterpolator) and draws contours for the
     requested `levels` for each CSV, labeling them by BR (extracted from the
     CSV's `BR_mu` column if present, otherwise by filename).
@@ -1009,7 +1009,7 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
 
     # create evaluation grid in log-space spanning union range
     if np.any(union_mass <= 0) or np.any(union_caphi <= 0):
-        raise RuntimeError('Mass (C_Zh) and CaPhi must be positive for log-space interpolation.')
+        raise RuntimeError('C_Zh and CaPhi must be positive for log-space interpolation.')
 
     LOGX = np.linspace(np.log10(float(union_mass.min())), np.log10(float(union_mass.max())), nx_grid)
     LOGY = np.linspace(np.log10(float(union_caphi.min())), np.log10(float(union_caphi.max())), ny_grid)
@@ -1666,7 +1666,7 @@ def main():
                                           use_log_scale=use_log, smooth_sigma=sigma)
     else:
         mass_vals, caphi_vals, heat = prepare_grid_from_csv(csv_list[0], 'N_signal')
-        print(f'Loaded {len(mass_vals)} mass points × {len(caphi_vals)} coupling points from {csv_list[0]}')
+        print(f'Loaded {len(mass_vals)} C_Zh points × {len(caphi_vals)} coupling points from {csv_list[0]}')
         print(f'Plotting contours at levels: {levels} -> saving to {output_path}')
 
         # Try to extract the Higgs coupling `C_Zh_eff` from the CSV and append to title
