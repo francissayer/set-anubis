@@ -88,6 +88,76 @@ def prepare_grid_from_csv(csv_path: str, value_column: str = 'N_signal'):
     return x_vals, caphi_vals, heat
 
 
+def _tab10_color_by_index(idx: int):
+    """Return a reproducible color from the `tab10` colormap by integer index.
+
+    Uses the ListedColormap `.colors` attribute when available to avoid
+    calling the colormap with out-of-range floats which can produce
+    inconsistent results.
+    """
+    cmap = plt.get_cmap('tab10')
+    try:
+        colors_list = cmap.colors
+    except Exception:
+        N = getattr(cmap, 'N', 10)
+        colors_list = [cmap(i / float(max(1, N - 1))) for i in range(N)]
+    return colors_list[int(idx) % len(colors_list)]
+
+
+def _extract_br_value(fp, df=None):
+    """Attempt to extract a single BR value from a DataFrame or filename.
+
+    Preference order:
+    1. Look for any column name containing 'br' (case-insensitive) and
+       accept it if it contains a single unique numeric value.
+    2. Fall back to parsing the filename for a `BR_...` token.
+    Returns a float or None.
+    """
+    # Try from DataFrame columns first
+    try:
+        if df is not None:
+            for col in df.columns:
+                if __import__('re').search(r'br', str(col), flags=__import__('re').IGNORECASE):
+                    try:
+                        numeric = pd.to_numeric(df[col], errors='coerce').dropna().astype(float).values
+                        if numeric.size == 0:
+                            continue
+                        # use median/mode heuristics to accept nearly-constant columns
+                        m = float(np.nanmedian(numeric))
+                        frac_close = np.count_nonzero(np.isclose(numeric, m, rtol=1e-3, atol=1e-12)) / float(numeric.size)
+                        if frac_close >= 0.9:
+                            return m
+                        # if most entries equal 1.0, treat as BR==1
+                        frac_one = np.count_nonzero(np.isclose(numeric, 1.0, rtol=1e-6, atol=1e-12)) / float(numeric.size)
+                        if frac_one >= 0.9:
+                            return 1.0
+                        # fallback: if unique rounded values collapse to one, return that
+                        try:
+                            u = np.unique(np.round(numeric, decimals=6))
+                            if u.size == 1:
+                                return float(u[0])
+                        except Exception:
+                            pass
+                    except Exception:
+                        continue
+    except Exception:
+        pass
+
+    # Fallback to filename parsing (operate on the stem to avoid extensions)
+    try:
+        stem = Path(fp).stem
+        m = __import__('re').search(r'BR[_-]?([0-9Ee.+-p]+)', stem, flags=__import__('re').IGNORECASE)
+        if m:
+            token = m.group(1).replace('p', '.')
+            return float(token)
+        else:
+            # Try last underscore-separated token from the stem
+            token = stem.split('_')[-1].replace('p', '.')
+            return float(token)
+    except Exception:
+        return None
+
+
 def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
                               title=None, cmap_name='viridis', use_log_scale=True, dpi=300,
                               smooth_sigma=0.0):
@@ -420,7 +490,8 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
 
 def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
                                       title=None, cmap_name='tab10', use_log_scale=True,
-                                      dpi=300, smooth_sigma=0.0, nx_grid=1000, ny_grid=1000):
+                                      dpi=300, smooth_sigma=0.0, nx_grid=1000, ny_grid=1000,
+                                      envelope=True, draw_heatmap=False):
     """
     Overlay contour lines from multiple CSV grids on the same C_Zh (x) vs CaPhi (y)
     plot. Each CSV is expected to contain columns `C_Zh`, `CaPhi`, and
@@ -467,100 +538,282 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
     color_map = plt.get_cmap('tab10')
     legend_handles = []
 
-    for idx, d in enumerate(datasets):
-        x = np.asarray(d['mass_vals'], dtype=float)
-        y = np.asarray(d['caphi_vals'], dtype=float)
-        Z2 = np.array(d['heat'], dtype=float)
+    # Precompute interpolated grids for each dataset so we can operate
+    # group-wise and form BR envelopes identical to 8.py's behavior.
+    gz_list = []
+    for d in datasets:
+        try:
+            x = np.asarray(d['mass_vals'], dtype=float)
+            y = np.asarray(d['caphi_vals'], dtype=float)
+            Z2 = np.array(d['heat'], dtype=float)
 
-        positive_mask = Z2 > 0
-        if np.any(positive_mask):
-            min_pos = float(np.min(Z2[positive_mask]))
-            max_pos = float(np.max(Z2[positive_mask]))
-            eps = max(min_pos * 1e-3, 1e-20)
+            positive_mask = Z2 > 0
+            if np.any(positive_mask):
+                min_pos = float(np.min(Z2[positive_mask]))
+                max_pos = float(np.max(Z2[positive_mask]))
+                eps = max(min_pos * 1e-3, 1e-20)
+            else:
+                eps = 1e-15
+                max_pos = eps
+
+            Z_safe = np.where(Z2 > 0, Z2, eps)
+            zlog = np.log10(Z_safe)
+
+            # build scattered points in log-space for interpolation
+            xlog = np.log10(x)
+            ylog = np.log10(y)
+            XX_loc, YY_loc = np.meshgrid(xlog, ylog)
+            pts_loc = np.column_stack((XX_loc.ravel(), YY_loc.ravel()))
+            vals_loc = zlog.ravel()
+            finite_mask = np.isfinite(vals_loc)
+            pts_f = pts_loc[finite_mask]
+            vals_f = vals_loc[finite_mask]
+            if pts_f.shape[0] < 3:
+                gz_list.append(None)
+                continue
+
+            interp = LinearNDInterpolator(pts_f, vals_f)
+            GZ_log = interp(eval_pts).reshape(LOGGX.shape)
+
+            # mask outside convex hull
+            try:
+                if ConvexHull is not None and pts_f.shape[0] >= 3:
+                    hull = ConvexHull(pts_f)
+                    hull_path = MplPath(pts_f[hull.vertices])
+                    inside = hull_path.contains_points(eval_pts)
+                    GZ_log_flat = GZ_log.ravel()
+                    GZ_log_flat[~inside] = np.nan
+                    GZ_log = GZ_log_flat.reshape(GZ_log.shape)
+            except Exception:
+                pass
+
+            # optional smoothing
+            if gaussian_filter is not None and smooth_sigma is not None and smooth_sigma > 0:
+                try:
+                    med = np.nanmedian(GZ_log)
+                    if np.isfinite(med):
+                        filled = np.where(np.isfinite(GZ_log), GZ_log, med)
+                    else:
+                        filled = np.where(np.isfinite(GZ_log), GZ_log, 0.0)
+                    smoothed = gaussian_filter(filled, sigma=smooth_sigma, mode='nearest')
+                    smoothed[~np.isfinite(GZ_log)] = np.nan
+                    GZ_log = smoothed
+                except Exception:
+                    pass
+
+            GZ = np.where(np.isfinite(GZ_log), 10.0 ** GZ_log, np.nan)
+            if smooth_sigma is not None and smooth_sigma > 0 and np.any(positive_mask):
+                try:
+                    GZ = np.clip(GZ, eps, max_pos)
+                except Exception:
+                    pass
+
+            gz_list.append(GZ)
+        except Exception:
+            gz_list.append(None)
+
+    # Group datasets by their filename prefix before the `_BR_` token so
+    # different BR scans of the same dataset share a color and can be
+    # envelope-merged correctly.
+    group_keys = [os.path.basename(d['path']).split('_BR_')[0] for d in datasets]
+    unique_groups = []
+    for g in group_keys:
+        if g not in unique_groups:
+            unique_groups.append(g)
+
+    group_to_color_idx = {}
+    next_auto_idx = 0
+    for g in unique_groups:
+        lg = g.lower()
+        if 'anubis' in lg or ('mumu' in lg and 'higgs_signal_events' in lg):
+            group_to_color_idx[g] = 2
+        elif 'mathusla' in lg:
+            group_to_color_idx[g] = 1
+        elif 'lhc' in lg or 'atlas' in lg or 'cms' in lg:
+            group_to_color_idx[g] = 0
         else:
-            eps = 1e-15
-            max_pos = eps
+            group_to_color_idx[g] = next_auto_idx
+            next_auto_idx += 1
 
-        Z_safe = np.where(Z2 > 0, Z2, eps)
-        zlog = np.log10(Z_safe)
-
-        # build scattered points in log-space for interpolation
-        xlog = np.log10(x)
-        ylog = np.log10(y)
-        XX_loc, YY_loc = np.meshgrid(xlog, ylog)
-        pts_loc = np.column_stack((XX_loc.ravel(), YY_loc.ravel()))
-        vals_loc = zlog.ravel()
-        finite_mask = np.isfinite(vals_loc)
-        pts_f = pts_loc[finite_mask]
-        vals_f = vals_loc[finite_mask]
-        if pts_f.shape[0] < 3:
-            print(f'Warning: not enough points for interpolation in {d["path"]}; skipping')
+    # PHASE 1: build processed_items with metadata
+    processed_items = []
+    for idx, d in enumerate(datasets):
+        GZ = gz_list[idx]
+        if GZ is None:
+            # skip datasets that failed interpolation
             continue
 
-        interp = LinearNDInterpolator(pts_f, vals_f)
-        GZ_log = interp(eval_pts).reshape(LOGGX.shape)
+        base_name = os.path.basename(d['path'])
+        grp = base_name.split('_BR_')[0]
+        grp_lower = grp.lower() if isinstance(grp, str) else ''
 
-        # mask outside convex hull to avoid extrapolation artifacts
+        # choose a color
         try:
-            if ConvexHull is not None and pts_f.shape[0] >= 3:
-                hull = ConvexHull(pts_f)
-                hull_path = MplPath(pts_f[hull.vertices])
-                inside = hull_path.contains_points(eval_pts)
-                GZ_log_flat = GZ_log.ravel()
-                GZ_log_flat[~inside] = np.nan
-                GZ_log = GZ_log_flat.reshape(GZ_log.shape)
+            if 'higgs_signal_events_data' in grp_lower:
+                color = 'blue'
+            elif grp_lower == 'mathusla40':
+                color = 'orange'
+            elif grp_lower == 'mathusla' or grp_lower == 'mathusla200':
+                color = 'red'
+            else:
+                cidx = group_to_color_idx.get(grp, idx)
+                color = _tab10_color_by_index(cidx)
         except Exception:
-            pass
+            color = _tab10_color_by_index(group_to_color_idx.get(grp, idx))
 
-        # optional smoothing
-        if gaussian_filter is not None and smooth_sigma is not None and smooth_sigma > 0:
-            try:
-                med = np.nanmedian(GZ_log)
-                if np.isfinite(med):
-                    filled = np.where(np.isfinite(GZ_log), GZ_log, med)
-                else:
-                    filled = np.where(np.isfinite(GZ_log), GZ_log, 0.0)
-                smoothed = gaussian_filter(filled, sigma=smooth_sigma, mode='nearest')
-                smoothed[~np.isfinite(GZ_log)] = np.nan
-                GZ_log = smoothed
-            except Exception:
-                pass
-
-        GZ = np.where(np.isfinite(GZ_log), 10.0 ** GZ_log, np.nan)
-        if smooth_sigma is not None and smooth_sigma > 0 and np.any(positive_mask):
-            try:
-                GZ = np.clip(GZ, eps, max_pos)
-            except Exception:
-                pass
-
-        color = color_map(idx % color_map.N)
-        # draw contours for this dataset (colored by BR/dataset)
+        # determine BR robustly
+        br_val = None
         try:
-            cs = ax.contour(GX, GY, GZ, levels=levels, colors=[color], linewidths=1.8, zorder=60 + idx)
-            # highlight the 4.0 level if present
-            if any(np.isclose(levels, 4.0)):
+            df_tmp2 = pd.read_csv(d['path'])
+            br_val = _extract_br_value(d['path'], df=df_tmp2)
+        except Exception:
+            br_val = _extract_br_value(d['path'], df=None)
+
+        linestyle = ':' if (br_val is not None and not np.isclose(br_val, 1.0)) else '-'
+
+        # compute z-orders: ANUBIS/higgs highest, then MATHUSLA40, then MATHUSLA, then LHC
+        try:
+            if ('anubis' in grp_lower) or ('higgs_signal' in grp_lower) or ('higgs_signal_events' in grp_lower):
+                z_cs = 260 + idx
+                z_cs4 = 270 + idx
+            elif 'mathusla40' in grp_lower:
+                z_cs = 240 + idx
+                z_cs4 = 250 + idx
+            elif 'mathusla' in grp_lower:
+                z_cs = 220 + idx
+                z_cs4 = 230 + idx
+            elif 'lhc' in grp_lower or 'atlas' in grp_lower or 'cms' in grp_lower:
+                z_cs = 200 + idx
+                z_cs4 = 210 + idx
+            else:
+                z_cs = 60 + idx
+                z_cs4 = 70 + idx
+        except Exception:
+            z_cs = 60 + idx
+            z_cs4 = 70 + idx
+
+        # group display
+        try:
+            if 'higgs_signal_events_data' in grp_lower:
+                grp_display = 'ANUBIS'
+            else:
+                if grp_lower == 'mathusla' or grp_lower == 'mathusla200':
+                    grp_display = 'MATHUSLA200'
+                elif grp_lower == 'mathusla40':
+                    grp_display = 'MATHUSLA40'
+                else:
+                    grp_display = grp
+            legend_label = grp_display
+        except Exception:
+            grp_display = grp
+            legend_label = base_name
+
+        processed_items.append({
+            'idx': idx, 'd': d, 'GZ': GZ, 'grp': grp, 'color': color,
+            'linestyle': linestyle, 'label': base_name, 'br_val': br_val,
+            'z_cs': z_cs, 'z_cs4': z_cs4, 'legend_label': legend_label,
+            'grp_display': grp_display
+        })
+
+    # Assign distinct line colors per BR within each group so individual
+    # BR contours are visually distinguishable (fills still use group color).
+    try:
+        cmap_lines = plt.get_cmap('tab10')
+        groups_for_colors = {}
+        for item in processed_items:
+            groups_for_colors.setdefault(item['grp'], []).append(item)
+        for grp, items in groups_for_colors.items():
+            # sort by BR ascending for consistent color assignment
+            items_sorted = sorted(items, key=lambda it: float(it['br_val']) if it['br_val'] is not None else 0.0)
+            for k, it in enumerate(items_sorted):
+                it['line_color'] = cmap_lines(k % cmap_lines.N)
+    except Exception:
+        for item in processed_items:
+            item['line_color'] = item.get('color')
+
+    # PHASE 2: apply BR envelope if requested
+    if envelope:
+        groups = {}
+        for item in processed_items:
+            groups.setdefault(item['grp'], []).append(item)
+
+        for g_name, items in groups.items():
+            items.sort(key=lambda x: float(x['br_val']) if x['br_val'] is not None else 0.0)
+            running_gz = None
+            for item in items:
+                if item['GZ'] is None:
+                    continue
+                if running_gz is None:
+                    running_gz = item['GZ'].copy()
+                else:
+                    running_gz = np.fmax(running_gz, item['GZ'])
+                    item['GZ'] = running_gz.copy()
+
+        # restore original plotting order
+        processed_items.sort(key=lambda x: x['idx'])
+
+    # PHASE 3: draw contours and accumulate 4-event masks per group
+    group_masks = {}
+    group_colors = {}
+    group_zords = {}
+
+    for item in processed_items:
+        idx = item['idx']
+        GZ = item['GZ']
+        if GZ is None:
+            continue
+
+        try:
+            levels_non4 = [lv for lv in levels if not np.isclose(lv, 4.0)]
+            has_4 = any(np.isclose(levels, 4.0))
+
+            if len(levels_non4) > 0:
+                ax.contour(GX, GY, GZ, levels=levels_non4, colors=[item.get('line_color', item['color'])], linewidths=1.8, linestyles=item['linestyle'], zorder=item['z_cs'])
+
+            if has_4:
                 try:
-                    ax.contour(GX, GY, GZ, levels=[4.0], colors=[color], linewidths=3.2, zorder=70 + idx)
+                    cs4 = ax.contour(GX, GY, GZ, levels=[4.0], colors=[item.get('line_color', item['color'])], linewidths=3.2, linestyles=item['linestyle'], zorder=item['z_cs4'])
+                    mask = np.isfinite(GZ) & (GZ >= 4.0)
+                    if np.any(mask):
+                        grp = item['grp']
+                        if grp not in group_masks:
+                            group_masks[grp] = mask
+                            group_colors[grp] = item['color']
+                            group_zords[grp] = item['z_cs4'] - 5
+                        else:
+                            group_masks[grp] = group_masks[grp] | mask
                 except Exception:
                     pass
         except Exception as e:
-            print(f'Warning: failed to draw contours for {d["path"]}: {e}')
+            print(f'Warning: failed to draw contours for {item["d"]["path"]}: {e}')
             continue
 
-        # create legend handle labeled by BR if available
-        label = None
+        # legend handles: add per-BR entries so lines map to BR values
         try:
-            df_tmp = pd.read_csv(d['path'])
-            if 'BR_mu' in df_tmp.columns:
-                brs = pd.unique(df_tmp['BR_mu'])
-                if len(brs) == 1:
-                    label = f'BR_mu={float(brs[0])}'
+            if item.get('br_val') is not None:
+                try:
+                    brf = float(item['br_val'])
+                    label = f"{item['grp_display']} (BR={brf:g})"
+                except Exception:
+                    label = f"{item['grp_display']} (BR={item['br_val']})"
+            else:
+                label = item.get('label', item.get('legend_label', ''))
+            legend_handles.append(Line2D([0], [0], color=item.get('line_color', item['color']), lw=2.4, linestyle=item['linestyle'], label=label))
         except Exception:
             pass
-        if label is None:
-            label = os.path.basename(d['path'])
 
-        legend_handles.append(Line2D([0], [0], color=color, lw=2.4, label=label))
+    # Draw unified fills for groups
+    for grp_fill, mask_fill in group_masks.items():
+        try:
+            mask_float = np.where(mask_fill, 1.0, np.nan)
+            ax.contourf(GX, GY, mask_float, levels=[0.5, 1.5], colors=[group_colors[grp_fill]], alpha=0.15, zorder=group_zords[grp_fill])
+        except Exception as e:
+            print(f"Warning: failed to draw filled contour for group {grp_fill}: {e}")
+
+    # draw legend
+    if legend_handles:
+        legend = ax.legend(handles=legend_handles, loc='lower left', title='Datasets (BR)', framealpha=0.9, edgecolor='grey')
+        legend.set_zorder(100)
 
     # draw legend (no unified colorbar — contours convey the 4-event boundary per BR)
     if legend_handles:
@@ -596,7 +849,8 @@ def main():
     parser.add_argument('--levels', type=str, default='4', help='Comma-separated contour levels (event counts)')
     parser.add_argument('--sigma', type=float, default=0.0, help='Gaussian smoothing sigma (log-grid units). Use 0 to disable smoothing, use 1 for final plot')
     parser.add_argument('--no-log', dest='use_log', action='store_false', help='Do not use log normalization/scales')
-    parser.set_defaults(use_log=True)
+    parser.add_argument('--envelope', dest='envelope', action='store_true', help='When overlaying BR scans, include data from BRs <= current BR to form an envelope')
+    parser.set_defaults(use_log=True, envelope=False)
     args = parser.parse_args()
 
     csv_path = args.csv
@@ -638,7 +892,7 @@ def main():
                 except Exception:
                     fv = list(unique_vals)
                 if len(fv) == 1:
-                    czh_text = ', $C_{Zh}^{eff}=' + f"{fv[0]:g}" + '$'
+                    mass_text = ', $m_a=' + f"{mv[0]:g}" + '\\,\\mathrm{GeV}$'
                 else:
                     try:
                         czh_text = ', $C_{Zh}^{eff}\\in[' + f"{min(fv):g}" + ',' + f"{max(fv):g}" + ']$'
@@ -648,11 +902,31 @@ def main():
             pass
 
         title_base = 'Expected Signal Events for Fermion-Coupled ALPs, $pp\\to H \\to Z a$'
-        title = title_base + czh_text
+        # Try to add ALP mass to the title if present in the CSVs
+        mass_text = ''
+        try:
+            dfm = pd.read_csv(csv_list[0])
+            if 'mass' in dfm.columns:
+                uniqm = pd.unique(dfm['mass'])
+                try:
+                    mv = sorted([float(v) for v in uniqm])
+                except Exception:
+                    mv = list(uniqm)
+                if len(mv) == 1:
+                    mass_text = f', $m_a={mv[0]:g}\\,\\mathrm{{GeV}}$'
+                else:
+                    try:
+                        mass_text = f', $m_a\\in[{min(mv):g},{max(mv):g}]$'
+                    except Exception:
+                        mass_text = ''
+        except Exception:
+            pass
+
+        title = title_base + czh_text + mass_text
         # Use 4-event contours for each BR overlay as requested
         levels_overlay = [4.0]
         plot_sensitivity_contours_overlay(csv_list, levels_overlay, args.output, title=title,
-                          use_log_scale=args.use_log, smooth_sigma=args.sigma)
+                          use_log_scale=args.use_log, smooth_sigma=args.sigma, envelope=args.envelope)
     else:
         # [FIXED]: Mapping based on C_Zh column[cite: 3]
         mass_vals, caphi_vals, heat = prepare_grid_from_csv(csv_list[0], 'N_signal')
@@ -681,7 +955,27 @@ def main():
             pass
 
         title_base = 'Expected Signal Events for Fermion-Coupled ALPs, $pp\\to H \\to Z a$'
-        title = title_base + czh_text
+        # Append ALP mass to single-file title if available
+        mass_text = ''
+        try:
+            dfm = pd.read_csv(csv_list[0])
+            if 'mass' in dfm.columns:
+                uniqm = pd.unique(dfm['mass'])
+                try:
+                    mv = sorted([float(v) for v in uniqm])
+                except Exception:
+                    mv = list(uniqm)
+                if len(mv) == 1:
+                    mass_text = f', $m_a={mv[0]:g}\\,\\mathrm{{GeV}}$'
+                else:
+                    try:
+                        mass_text = f', $m_a\\in[{min(mv):g},{max(mv):g}]$'
+                    except Exception:
+                        mass_text = ''
+        except Exception:
+            pass
+
+        title = title_base + czh_text + mass_text
 
         plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, args.output,
                                   title=title,

@@ -986,7 +986,8 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
 
 def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
                                       title=None, cmap_name='tab10', use_log_scale=True,
-                                      dpi=300, smooth_sigma=0.0, draw_heatmap=False, nx_grid=1000, ny_grid=1000):
+                                      dpi=300, smooth_sigma=0.0, draw_heatmap=False, nx_grid=1000, ny_grid=1000,
+                                      apply_br_envelope=True):
     """
     Overlay contour lines from multiple CSV grids on the same C_Zh (x) vs CaPhi (y)
     plot. Each CSV is expected to contain columns ``C_Zh``, ``CaPhi``, and
@@ -1260,6 +1261,8 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
             group_to_color_idx[g] = next_auto_idx
             next_auto_idx += 1
 
+    # --- PHASE 1: COMPUTE GRIDS AND EXTRACT METADATA ---
+    processed_items = []
     for idx, d in enumerate(datasets):
         x = np.asarray(d['mass_vals'], dtype=float)
         y = np.asarray(d['caphi_vals'], dtype=float)
@@ -1368,37 +1371,117 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
         except Exception:
             pass
 
-        # draw contours for this dataset (colored by BR/dataset)
+        # Calculate logical z-orders
+        try:
+            grp_lower = grp.lower() if isinstance(grp, str) else ''
+            # Order: ANUBIS highest, then MATHUSLA40, then original MATHUSLA (renamed MATHUSLA200), then LHC
+            if ('anubis' in grp_lower) or ('higgs_signal' in grp_lower) or ('higgs_signal_events' in grp_lower) or ('higgs_signal_events_data' in grp_lower):
+                z_cs = 260 + idx
+                z_cs4 = 270 + idx
+            elif 'mathusla40' in grp_lower:
+                z_cs = 240 + idx
+                z_cs4 = 250 + idx
+            elif 'mathusla' in grp_lower:
+                z_cs = 220 + idx
+                z_cs4 = 230 + idx
+            elif 'lhc' in grp_lower or 'atlas' in grp_lower or 'cms' in grp_lower:
+                z_cs = 200 + idx
+                z_cs4 = 210 + idx
+            else:
+                z_cs = 60 + idx
+                z_cs4 = 70 + idx
+        except Exception:
+            z_cs = 60 + idx
+            z_cs4 = 70 + idx
+
+        # Generate cleaner group displays for labels
+        try:
+            grp_lower = grp.lower() if isinstance(grp, str) else ''
+            if 'higgs_signal_events_data' in grp_lower:
+                grp_display = 'ANUBIS'
+            else:
+                if grp_lower == 'mathusla' or grp_lower == 'mathusla200':
+                    grp_display = 'MATHUSLA200'
+                elif grp_lower == 'mathusla40':
+                    grp_display = 'MATHUSLA40'
+                else:
+                    grp_display = grp
+
+            legend_label = grp_display
+        except Exception:
+            grp_display = grp
+            legend_label = label
+
+        processed_items.append({
+            'idx': idx, 'd': d, 'GZ': GZ, 'grp': grp, 'color': color,
+            'linestyle': linestyle, 'label': label, 'br_val': br_val,
+            'z_cs': z_cs, 'z_cs4': z_cs4, 'legend_label': legend_label,
+            'grp_display': grp_display
+        })
+
+
+    # -------------------------------------------------------------------------
+    # PHASE 2: APPLY BRANCHING RATIO ENVELOPE 
+    # -------------------------------------------------------------------------
+    # Explanation:
+    # Due to statistical fluctuations in the Monte Carlo sampling at the
+    # sensitivity boundaries, the BR=1 contour is defined as the envelope of
+    # the union of all simulated branching ratio configurations, as the BR=1
+    # case represents the maximal physical reach. To ensure consistency across
+    # all configurations, any given BR is computed as the envelope of the
+    # union of all data for BRs equal to or less than that.
+    # This is implemented by taking the element-wise maximum of the expected
+    # signal events (GZ grid) iteratively from the smallest BR to the target BR.
+    # -------------------------------------------------------------------------
+    if apply_br_envelope:
+        groups = {}
+        for item in processed_items:
+            groups.setdefault(item['grp'], []).append(item)
+
+        for g_name, items in groups.items():
+            # sort datasets in this group sequentially by BR value (smallest to largest)
+            items.sort(key=lambda x: float(x['br_val']) if x['br_val'] is not None else 0.0)
+
+            running_gz = None
+            for item in items:
+                if item['GZ'] is None:
+                    continue
+                
+                if running_gz is None:
+                    running_gz = item['GZ'].copy()
+                else:
+                    # np.fmax safely handles and preserves valid floats over NaNs, absorbing missing bins organically.
+                    running_gz = np.fmax(running_gz, item['GZ'])
+                    item['GZ'] = running_gz.copy()
+
+        # Sort back to original idx sequence to maintain identical plotted z-orders
+        processed_items.sort(key=lambda x: x['idx'])
+
+
+    # --- PHASE 3: DRAW CONTOURS ---
+    for item in processed_items:
+        idx = item['idx']
+        d = item['d']
+        GZ = item['GZ']
+        grp = item['grp']
+        color = item['color']
+        linestyle = item['linestyle']
+        label = item['label']
+        br_val = item['br_val']
+        z_cs = item['z_cs']
+        z_cs4 = item['z_cs4']
+        legend_label = item['legend_label']
+        grp_display = item['grp_display']
+
+        if GZ is None:
+            continue
+
         try:
             # separate the 4.0 highlight to avoid drawing the same level twice
             levels_non4 = [lv for lv in levels if not np.isclose(lv, 4.0)]
             has_4 = any(np.isclose(levels, 4.0))
 
             cs = None
-            # choose z-order so that ANUBIS dataset contours are plotted above MATHUSLA and LHC
-            try:
-                grp_lower = grp.lower() if isinstance(grp, str) else ''
-                # Order: ANUBIS highest, then MATHUSLA40, then original MATHUSLA (renamed MATHUSLA200), then LHC
-                if ('anubis' in grp_lower) or ('higgs_signal' in grp_lower) or ('higgs_signal_events' in grp_lower) or ('higgs_signal_events_data' in grp_lower):
-                    z_cs = 260 + idx
-                    z_cs4 = 270 + idx
-                elif 'mathusla40' in grp_lower:
-                    # place MATHUSLA40 above original mathusla but below ANUBIS
-                    z_cs = 240 + idx
-                    z_cs4 = 250 + idx
-                elif 'mathusla' in grp_lower:
-                    z_cs = 220 + idx
-                    z_cs4 = 230 + idx
-                elif 'lhc' in grp_lower or 'atlas' in grp_lower or 'cms' in grp_lower:
-                    z_cs = 200 + idx
-                    z_cs4 = 210 + idx
-                else:
-                    z_cs = 60 + idx
-                    z_cs4 = 70 + idx
-            except Exception:
-                z_cs = 60 + idx
-                z_cs4 = 70 + idx
-
             if len(levels_non4) > 0:
                 cs = ax.contour(GX, GY, GZ, levels=levels_non4, colors=[color], linewidths=1.8, linestyles=linestyle, zorder=z_cs)
 
@@ -1429,30 +1512,8 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
         except Exception as e:
             print(f'Warning: failed to draw contours for {d["path"]}: {e}')
             continue
-        except Exception as e:
-            print(f'Warning: failed to draw contours for {d["path"]}: {e}')
-            continue
 
         # Add legend handle for this dataset (show group prefix + BR when available)
-        try:
-            # Map raw higgs signal filenames to a cleaner ANUBIS group name
-            grp_lower = grp.lower() if isinstance(grp, str) else ''
-            if 'higgs_signal_events_data' in grp_lower:
-                grp_display = 'ANUBIS'
-            else:
-                # Map original MATHUSLA prefix to MATHUSLA200 for clarity
-                if grp_lower == 'mathusla' or grp_lower == 'mathusla200':
-                    grp_display = 'MATHUSLA200'
-                elif grp_lower == 'mathusla40':
-                    grp_display = 'MATHUSLA40'
-                else:
-                    grp_display = grp
-
-            # Use group display name only (do not append BR label)
-            legend_label = grp_display
-        except Exception:
-            legend_label = label
-
         # Do NOT add ANUBIS BR<1 entries to the legend; label them inline on-plot instead
         try:
             if not (isinstance(grp_display, str) and grp_display.upper() == 'ANUBIS' and br_val is not None and float(br_val) < 1.0):
@@ -1611,6 +1672,10 @@ def main():
     sigma = 20.0
     # Use log scales by default
     use_log = True
+    
+    # Toggle for generating sensitivity contour envelopes across BRs
+    apply_envelope = True
+    
     # Expand potential glob patterns or detect per-BR CSVs in the Plots folder
     csv_list = []
     # If user provided a glob pattern, expand it
@@ -1663,7 +1728,7 @@ def main():
         # Draw only the 4-event overlay level for comparison
         levels_overlay = [4.0]
         plot_sensitivity_contours_overlay(csv_list, levels_overlay, output_path, title=title,
-                                          use_log_scale=use_log, smooth_sigma=sigma)
+                                          use_log_scale=use_log, smooth_sigma=sigma, apply_br_envelope=apply_envelope)
     else:
         mass_vals, caphi_vals, heat = prepare_grid_from_csv(csv_list[0], 'N_signal')
         print(f'Loaded {len(mass_vals)} C_Zh points × {len(caphi_vals)} coupling points from {csv_list[0]}')
