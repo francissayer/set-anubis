@@ -118,7 +118,7 @@ def calculate_couplings(input_csv, output_csv, BR_muon, Lambda_scale=1000.0, fa_
     # ==========================================
     # 2. Calculate C_aphi (ALP-fermion coupling)
     # ==========================================
-    # Convert c*tau (meters) to decay width Gamma(a -> bb) (GeV)
+    # Convert c*tau (meters) to decay width Gamma(a -> mu mu) (GeV)
     Gamma_total = hbar_c / ctau_scaled
     Gamma_mu = BR_muon * Gamma_total
     
