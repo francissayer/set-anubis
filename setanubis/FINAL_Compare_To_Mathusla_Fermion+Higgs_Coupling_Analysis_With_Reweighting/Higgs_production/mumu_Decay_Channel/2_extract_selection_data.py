@@ -240,48 +240,25 @@ def extract_scan_run_from_filename(filename: str) -> tuple:
     return None, None
 
 
+# Create a global cache to avoid checking the same scan/run twice
+_PARAM_CACHE = {}
+
 def extract_mass_and_coupling(bundle_path: str, scan: int, run: int) -> tuple:
     """Determine ALP mass and CaPhi coupling for a given bundle file.
-
-    Strategy (best-effort):
-    1. Try to read the pickled EventsBundle and obtain the ALP mass from the
-       ``LLPs`` table if present (most reliable).
-    2. If not found, locate the corresponding MadGraph ``scan_run_*.txt`` in
-       the scan's ``Events`` directory and parse the table header to extract
-       the mass and the alppars column that maps to ``CaPhi``.
-
-    Parameters
-    ----------
-    bundle_path : str
-        Path to the pickled bundle file (gzip compressed pickle).
-    scan : int
-        Scan index inferred from the bundle filename (used to find MadGraph
-        scan directories).
-    run : int
-        Run index within the scan (used to match the scan_run table row).
-
-    Returns
-    -------
-    (mass_GeV, CaPhi)
-        Tuple containing the ALP mass (float) and the CaPhi coupling (float),
-        either or both may be ``None`` if not discoverable.
+    Optimized to use memory cache first, then tiny txt files, and finally massive pickles.
     """
     import pickle
     import gzip
     
+    # 1. FASTEST: Check memory cache
+    cache_key = (scan, run)
+    if cache_key in _PARAM_CACHE:
+        return _PARAM_CACHE[cache_key]
+
     mass = None
     caphi = None
     
-    # Extract mass from bundle pickle file (most reliable source)
-    try:
-        with gzip.open(bundle_path, 'rb') as f:
-            bundle = pickle.load(f)
-            if 'LLPs' in bundle and len(bundle['LLPs']) > 0:
-                mass = bundle['LLPs']['mass'].iloc[0]
-    except Exception as e:
-        print(f"  Warning: Could not extract mass from bundle: {e}")
-    
-    # Extract CaPhi from MadGraph scan_run file (contains actual parameter values used)
+    # 2. FAST: Extract CaPhi and Mass from MadGraph scan_run file first (tiny plain text file)
     try:
         scan_dir = Path(bundle_path).parent / f"Higgs_to_ALP_axZ_scan_{scan}"
         if scan_dir.exists():
@@ -301,23 +278,15 @@ def extract_mass_and_coupling(bundle_path: str, scan: int, run: int) -> tuple:
                         # First line is header
                         header = lines[0].split()
                         
-                        # Find column indices
-                        mass_col_idx = None
-                        caphi_col_idx = None
-                        
-                        for i, col in enumerate(header):
-                            if 'mass#9000005' in col:
-                                mass_col_idx = i
-                            if 'alppars#5' in col:  # CaPhi is typically alppars#5
-                                caphi_col_idx = i
+                        mass_col_idx = next((i for i, col in enumerate(header) if 'mass#9000005' in col), None)
+                        caphi_col_idx = next((i for i, col in enumerate(header) if 'alppars#5' in col), None)
                         
                         # Find the row for this run (run_XX format)
                         run_name = f"run_{run:02d}"
                         for line in lines[1:]:
                             parts = line.split()
                             if len(parts) > 0 and parts[0] == run_name:
-                                # Extract mass if not already found in bundle
-                                if mass is None and mass_col_idx is not None and mass_col_idx < len(parts):
+                                if mass_col_idx is not None and mass_col_idx < len(parts):
                                     mass = float(parts[mass_col_idx])
                                 
                                 # Extract CaPhi
@@ -326,6 +295,19 @@ def extract_mass_and_coupling(bundle_path: str, scan: int, run: int) -> tuple:
                                 break
     except Exception as e:
         print(f"  Warning: Could not extract parameters from scan_run file: {e}")
+
+    # 3. SLOWEST: Fallback to unzipping and unpickling the bundle if text file parsing failed
+    if mass is None:
+        try:
+            with gzip.open(bundle_path, 'rb') as f:
+                bundle = pickle.load(f)
+                if 'LLPs' in bundle and len(bundle['LLPs']) > 0:
+                    mass = float(bundle['LLPs']['mass'].iloc[0])
+        except Exception as e:
+            print(f"  Warning: Could not extract mass from bundle: {e}")
+
+    # Save to cache so future files with this scan/run load instantly
+    _PARAM_CACHE[cache_key] = (mass, caphi)
     
     return mass, caphi
 
@@ -572,13 +554,16 @@ Examples:
             run_val = int(row['run']) if 'run' in existing_df.columns and pd.notna(row['run']) else None
             target_coup = str(row['target_coupling']) if 'target_coupling' in existing_df.columns and pd.notna(row['target_coupling']) else None
             br_mu_val = str(row['BR_mu']) if 'BR_mu' in existing_df.columns and pd.notna(row['BR_mu']) else None
+            
+            mass_val = float(row['mass']) if 'mass' in existing_df.columns and pd.notna(row['mass']) else None
+            mass_val_str = str(float(mass_val)) if mass_val is not None else None
 
-            processed_by_gen_run.add((gen_idx, scan_val, run_val, target_coup, br_mu_val))
+            processed_by_gen_run.add((gen_idx, scan_val, run_val, target_coup, br_mu_val, mass_val_str))
 
             if 'filepath' in existing_df.columns and pd.notna(row.get('filepath')):
-                processed_by_filepath.add((row['filepath'], target_coup, br_mu_val))
+                processed_by_filepath.add((row['filepath'], target_coup, br_mu_val, mass_val_str))
             if 'filename' in existing_df.columns and pd.notna(row.get('filename')):
-                processed_by_filename.add((row['filename'], target_coup, br_mu_val))
+                processed_by_filename.add((row['filename'], target_coup, br_mu_val, mass_val_str))
 
         print(f"Found existing CSV with {len(existing_df)} entries")
         print(f"Will skip {len(processed_by_gen_run) + len(processed_by_filepath) + len(processed_by_filename)} already-processed entries (by various keys)")
@@ -648,21 +633,24 @@ Examples:
                 scan, run = extract_scan_run_from_filename(fname)
                 m = re.search(r'Generated_Events_(\d+)', str(bf))
                 gen_idx = int(m.group(1)) if m else None
+                
+                mass, _ = extract_mass_and_coupling(bf, scan, run)
+                mass_val_str = str(float(mass)) if mass is not None else None
 
                 # If no existing processed entries, accept all
                 if not processed_by_gen_run and not processed_by_filepath and not processed_by_filename:
                     per_coupling_to_process.append(bf)
                     continue
 
-                key_primary = (gen_idx, scan, run, str(target_coup) if target_coup is not None else None, str(br_mu) if br_mu is not None else None)
+                key_primary = (gen_idx, scan, run, str(target_coup) if target_coup is not None else None, str(br_mu) if br_mu is not None else None, mass_val_str)
                 if key_primary in processed_by_gen_run:
                     continue
 
-                key_fp = (bf, str(target_coup) if target_coup is not None else None, str(br_mu) if br_mu is not None else None)
+                key_fp = (bf, str(target_coup) if target_coup is not None else None, str(br_mu) if br_mu is not None else None, mass_val_str)
                 if key_fp in processed_by_filepath:
                     continue
 
-                key_fn = (fname, str(target_coup) if target_coup is not None else None, str(br_mu) if br_mu is not None else None)
+                key_fn = (fname, str(target_coup) if target_coup is not None else None, str(br_mu) if br_mu is not None else None, mass_val_str)
                 if key_fn in processed_by_filename:
                     continue
 
