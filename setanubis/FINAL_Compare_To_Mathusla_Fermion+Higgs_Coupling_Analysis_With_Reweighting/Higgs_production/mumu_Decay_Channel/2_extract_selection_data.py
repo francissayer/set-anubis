@@ -312,6 +312,25 @@ def extract_mass_and_coupling(bundle_path: str, scan: int, run: int) -> tuple:
     return mass, caphi
 
 
+def _norm_float_str(val):
+    """Normalize numeric-like values to a stable string representation.
+
+    Returns None for None/NaN, otherwise returns a compact consistent
+    string using 12 significant digits to avoid formatting mismatches.
+    """
+    try:
+        if val is None:
+            return None
+        f = float(val)
+        return format(f, '.12g')
+    except Exception:
+        try:
+            s = str(val)
+            return s if s != '' else None
+        except Exception:
+            return None
+
+
 def process_bundle_file(bundle_path: str, pipeline, sel_cfg, run_cfg, reweight_lifetime: Optional[float] = None) -> Dict:
     """Process one EventsBundle: run selection and collect cutflow results.
 
@@ -552,18 +571,18 @@ Examples:
             gen_idx = int(row['generated_events_index']) if 'generated_events_index' in existing_df.columns and pd.notna(row['generated_events_index']) else None
             scan_val = int(row['scan']) if 'scan' in existing_df.columns and pd.notna(row['scan']) else None
             run_val = int(row['run']) if 'run' in existing_df.columns and pd.notna(row['run']) else None
-            target_coup = str(row['target_coupling']) if 'target_coupling' in existing_df.columns and pd.notna(row['target_coupling']) else None
-            br_mu_val = str(row['BR_mu']) if 'BR_mu' in existing_df.columns and pd.notna(row['BR_mu']) else None
+            target_coup_norm = _norm_float_str(row['target_coupling']) if 'target_coupling' in existing_df.columns and pd.notna(row['target_coupling']) else None
+            br_mu_norm = _norm_float_str(row['BR_mu']) if 'BR_mu' in existing_df.columns and pd.notna(row['BR_mu']) else None
             
             mass_val = float(row['mass']) if 'mass' in existing_df.columns and pd.notna(row['mass']) else None
-            mass_val_str = str(float(mass_val)) if mass_val is not None else None
+            mass_val_str = _norm_float_str(mass_val)
 
-            processed_by_gen_run.add((gen_idx, scan_val, run_val, target_coup, br_mu_val, mass_val_str))
+            processed_by_gen_run.add((gen_idx, scan_val, run_val, target_coup_norm, br_mu_norm, mass_val_str))
 
             if 'filepath' in existing_df.columns and pd.notna(row.get('filepath')):
-                processed_by_filepath.add((row['filepath'], target_coup, br_mu_val, mass_val_str))
+                processed_by_filepath.add((row['filepath'], target_coup_norm, br_mu_norm, mass_val_str))
             if 'filename' in existing_df.columns and pd.notna(row.get('filename')):
-                processed_by_filename.add((row['filename'], target_coup, br_mu_val, mass_val_str))
+                processed_by_filename.add((row['filename'], target_coup_norm, br_mu_norm, mass_val_str))
 
         print(f"Found existing CSV with {len(existing_df)} entries")
         print(f"Will skip {len(processed_by_gen_run) + len(processed_by_filepath) + len(processed_by_filename)} already-processed entries (by various keys)")
@@ -635,22 +654,30 @@ Examples:
                 gen_idx = int(m.group(1)) if m else None
                 
                 mass, _ = extract_mass_and_coupling(bf, scan, run)
-                mass_val_str = str(float(mass)) if mass is not None else None
+                mass_val_str = _norm_float_str(mass)
 
                 # If no existing processed entries, accept all
                 if not processed_by_gen_run and not processed_by_filepath and not processed_by_filename:
                     per_coupling_to_process.append(bf)
                     continue
 
-                key_primary = (gen_idx, scan, run, str(target_coup) if target_coup is not None else None, str(br_mu) if br_mu is not None else None, mass_val_str)
+                # If no existing processed entries, accept all
+                if not processed_by_gen_run and not processed_by_filepath and not processed_by_filename:
+                    per_coupling_to_process.append(bf)
+                    continue
+
+                target_coup_norm = _norm_float_str(target_coup) if target_coup is not None else None
+                br_mu_norm = _norm_float_str(br_mu) if br_mu is not None else None
+
+                key_primary = (gen_idx, scan, run, target_coup_norm, br_mu_norm, mass_val_str)
                 if key_primary in processed_by_gen_run:
                     continue
 
-                key_fp = (bf, str(target_coup) if target_coup is not None else None, str(br_mu) if br_mu is not None else None, mass_val_str)
+                key_fp = (bf, target_coup_norm, br_mu_norm, mass_val_str)
                 if key_fp in processed_by_filepath:
                     continue
 
-                key_fn = (fname, str(target_coup) if target_coup is not None else None, str(br_mu) if br_mu is not None else None, mass_val_str)
+                key_fn = (fname, target_coup_norm, br_mu_norm, mass_val_str)
                 if key_fn in processed_by_filename:
                     continue
 

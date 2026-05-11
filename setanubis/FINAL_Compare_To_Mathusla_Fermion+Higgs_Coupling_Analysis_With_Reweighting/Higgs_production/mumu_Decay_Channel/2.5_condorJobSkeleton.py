@@ -15,6 +15,10 @@ parser.add_argument("--memory", default = "6G")
 parser.add_argument("--dryrun", action="store_true", help="Run without submitting, but produces the jobscripts and submission files which can be checked.")
 parser.add_argument("--testArg", action="store_true", help="Just a proxy argument for reference")
 parser.add_argument("--mass-filter", type=float, default=1.0, help="Only process bundles with ALP mass (GeV) equal to this value. Set <= 0 to disable filtering.")
+# Rebuild-missing should be the default when running interactively (e.g. VSCode play button).
+parser.add_argument("--rebuild-missing", dest='rebuild_missing', action="store_true", help="Enumerate expected bundle x coupling x BR keys and prepare jobs for any missing entries in the detector CSV.")
+parser.add_argument("--no-rebuild-missing", dest='rebuild_missing', action="store_false", help="Disable rebuilding missing entries (useful when running bulk non-rebuild flows).")
+parser.set_defaults(rebuild_missing=True)
 args = parser.parse_args()
 
 
@@ -148,11 +152,28 @@ def extract_mass_and_coupling(bundle_path: str, scan: int, run: int) -> tuple:
     return mass, caphi
 
 
+def _norm_float_str(val):
+    """Normalize a numeric-like value to a stable string representation.
+
+    Returns None for None/NaN, otherwise returns a compact but consistent
+    string using 12 significant digits (avoids minor repr/scientific differences).
+    """
+    try:
+        if val is None:
+            return None
+        f = float(val)
+        return format(f, '.12g')
+    except Exception:
+        try:
+            s = str(val)
+            return s if s != '' else None
+        except Exception:
+            return None
+
+
 print("=============")
 print(f"Target extract script: {EXTRACT_SCRIPT}")
-
-if input("Confirm this is correct with y...").lower() != "y":
-    raise Exception("Incorrect extract script path, please adjust your arguments")
+# Non-interactive: assume the path is correct when run from automation/VSCode
 
 
 if args.jobscriptDir=="":
@@ -223,24 +244,156 @@ if output_csv and os.path.exists(output_csv):
             gen_idx = int(row['generated_events_index']) if 'generated_events_index' in existing_df.columns and pd.notna(row['generated_events_index']) else None
             scan_val = int(row['scan']) if 'scan' in existing_df.columns and pd.notna(row['scan']) else None
             run_val = int(row['run']) if 'run' in existing_df.columns and pd.notna(row['run']) else None
-            target_coup = str(row['target_coupling']) if 'target_coupling' in existing_df.columns and pd.notna(row['target_coupling']) else None
-            br_mu_val = str(row['BR_mu']) if 'BR_mu' in existing_df.columns and pd.notna(row['BR_mu']) else None
+            target_coup_norm = _norm_float_str(row['target_coupling']) if 'target_coupling' in existing_df.columns and pd.notna(row['target_coupling']) else None
+            br_mu_norm = _norm_float_str(row['BR_mu']) if 'BR_mu' in existing_df.columns and pd.notna(row['BR_mu']) else None
             
             mass_val = float(row['mass']) if 'mass' in existing_df.columns and pd.notna(row['mass']) else None
-            mass_val_str = str(float(mass_val)) if mass_val is not None else None
+            mass_val_str = _norm_float_str(mass_val)
 
-            processed_by_gen_run.add((gen_idx, scan_val, run_val, target_coup, br_mu_val, mass_val_str))
+            processed_by_gen_run.add((gen_idx, scan_val, run_val, target_coup_norm, br_mu_norm, mass_val_str))
 
             if 'filepath' in existing_df.columns and pd.notna(row.get('filepath')):
-                processed_by_filepath.add((row['filepath'], target_coup, br_mu_val, mass_val_str))
+                processed_by_filepath.add((row['filepath'], target_coup_norm, br_mu_norm, mass_val_str))
             if 'filename' in existing_df.columns and pd.notna(row.get('filename')):
-                processed_by_filename.add((row['filename'], target_coup, br_mu_val, mass_val_str))
+                processed_by_filename.add((row['filename'], target_coup_norm, br_mu_norm, mass_val_str))
 
         print(f"Found existing CSV with {len(existing_df)} entries; will skip already-processed bundles for matching coupling/BR/mass")
     except Exception as e:
         print(f"Warning: failed to read existing output CSV {output_csv}: {e}")
 else:
     print("No existing output CSV found; will create jobs for all coupling/BR/mass combinations")
+
+# Optionally compute expected keys and rebuild missing jobs first
+if args.rebuild_missing:
+    expected_set = set()
+    for bf in bundle_files:
+        fname = Path(bf).name
+        scan, run = extract_scan_run_from_filename(fname)
+        mass, _ = extract_mass_and_coupling(bf, scan, run)
+        mass_val_str = _norm_float_str(mass)
+        m = re.search(r'Generated_Events_(\d+)', fname)
+        gen_idx = int(m.group(1)) if m else None
+        for t in target_couplings:
+            for b in (br_mu_tuple if br_mu_tuple else (None,)):
+                expected_set.add((gen_idx, scan, run, _norm_float_str(t), _norm_float_str(b) if b is not None else None, mass_val_str))
+
+    missing_set = expected_set - processed_by_gen_run
+    print(f"Computed expected {len(expected_set)} keys; processed {len(processed_by_gen_run)} keys; missing {len(missing_set)} keys")
+
+    if len(missing_set) == 0:
+        print("No missing entries detected; nothing to schedule.")
+    else:
+        missing_by_combo = {}
+        for (gen_idx, scan, run, t_norm, b_norm, mass_str) in missing_set:
+            missing_by_combo.setdefault((t_norm, b_norm), []).append((gen_idx, scan, run, mass_str))
+
+        target_map = {_norm_float_str(t): t for t in target_couplings}
+        br_map = {_norm_float_str(b): b for b in br_mu_tuple} if br_mu_tuple else {}
+
+        job_counter = 100
+        for (t_norm, b_norm), items in sorted(missing_by_combo.items()):
+            t_float = target_map.get(t_norm)
+            b_float = br_map.get(b_norm) if b_norm is not None else None
+            if t_float is None:
+                print(f"Skipping unmapped combo: {t_norm}, {b_norm}")
+                continue
+
+            coup_pos = target_couplings.index(t_float) + 1
+            br_pos = (br_mu_tuple.index(b_float) + 1) if b_float is not None and br_mu_tuple else 1
+            job_counter += 1
+            jobDir = os.path.join(jobscriptDir, f"job{job_counter}_c{coup_pos}_b{br_pos}")
+
+            if not os.path.exists(jobDir):
+                os.makedirs(jobDir)
+            else:
+                t = input(f"WARNING: A job with this ID ({job_counter}) already exists at {jobDir}, overwrite? [y/n]")
+                if t.lower() == "y":
+                    for entry in os.listdir(jobDir):
+                        entry_path = os.path.join(jobDir, entry)
+                        try:
+                            if os.path.isdir(entry_path):
+                                import shutil
+                                shutil.rmtree(entry_path)
+                            else:
+                                os.remove(entry_path)
+                        except Exception:
+                            pass
+                else:
+                    print(f"Skipping this job ID: {job_counter}...")
+                    continue
+
+            wrapper_py = os.path.join(jobDir, "run_wrapper.py")
+            if b_float is not None:
+                wrapper_code = f"""import importlib.util
+import sys, os
+
+spec = importlib.util.spec_from_file_location("extract_mod", "{EXTRACT_SCRIPT}")
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+# Override defaults so this run processes a single (coupling,BR) pair
+mod.DEFAULT_TARGET_COUPLINGS = [{repr(t_float)}]
+mod.DEFAULT_BR_MU_TUPLE = ({repr(b_float)},)
+# Force args so seed computation uses the original coupling position
+sys.argv = ["{EXTRACT_SCRIPT}", "--force-coup-pos", "{coup_pos}", "--BR_mu", "{b_float}", "--mass-filter", "{args.mass_filter}"]
+# Call main
+if hasattr(mod, 'main'):
+    mod.main()
+else:
+    raise RuntimeError("extract module has no main()")
+"""
+            else:
+                wrapper_code = f"""import importlib.util
+import sys, os
+
+spec = importlib.util.spec_from_file_location("extract_mod", "{EXTRACT_SCRIPT}")
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+# Override defaults so this run processes a single coupling
+mod.DEFAULT_TARGET_COUPLINGS = [{repr(t_float)}]
+# Force args so seed computation uses the original coupling position
+sys.argv = ["{EXTRACT_SCRIPT}", "--force-coup-pos", "{coup_pos}", "--mass-filter", "{args.mass_filter}"]
+# Call main
+if hasattr(mod, 'main'):
+    mod.main()
+else:
+    raise RuntimeError("extract module has no main()")
+"""
+
+            with open(wrapper_py, 'w') as wf:
+                wf.write(wrapper_code)
+
+            bashScriptName = os.path.join(jobDir, "runJob")
+            with open(f"{bashScriptName}.sh","w") as f:
+                f.write(bashHeader)
+                f.write(f"/usera/fs568/set-anubis/.venv/bin/python {wrapper_py}\n")
+
+            try:
+                os.chmod(f"{bashScriptName}.sh", 0o755)
+            except Exception:
+                pass
+
+            condorString = f"executable = {bashScriptName}.sh" + "\n"
+            condorString+= f"output = {jobDir}/job{job_counter}_output.log" + "\n"
+            condorString+= f"error =  {jobDir}/job{job_counter}_error.log" + "\n"
+            condorString+= f"request_memory = {args.memory}" + "\n"
+            condorString+= f"log =  {jobDir}/job{job_counter}_log.log" + "\n"
+            condorString+= "copy_to_spool = true\n"
+            condorString+= "should_transfer_files = YES\n"
+            condorString+= "when_to_transfer_output = ON_EXIT_OR_EVICT\n"
+            condorString+= "Queue"
+
+            condorSubmissionFile = os.path.join(jobDir, "condor_submit.job")
+            with open(condorSubmissionFile, 'w') as c:
+                c.write(condorString)
+
+            print(f"Prepared job: coupling={t_float} (pos={coup_pos}), BR_mu={b_float} (pos={br_pos}) -> {condorSubmissionFile}")
+            print(f"To submit: condor_submit {condorSubmissionFile}")
+            if not args.dryrun:
+                os.system(f"condor_submit {condorSubmissionFile}")
+    # End rebuild_missing
+    # Exit after preparing/submitting missing jobs to avoid duplicating per-coupling flow
+    import sys as _sys
+    _sys.exit(0)
 
 # Create a job for each (coupling, BR) pair that still has unprocessed bundles
 job_counter = 100
@@ -255,20 +408,23 @@ for br_pos, br_mu in enumerate(br_mu_tuple, start=1):
             run = int(m_scan.group(2)) if m_scan else None
             
             mass, _ = extract_mass_and_coupling(bf, scan, run)
-            mass_val_str = str(float(mass)) if mass is not None else None
+            mass_val_str = _norm_float_str(mass)
 
             m = re.search(r'Generated_Events_(\d+)', str(bf))
             gen_idx = int(m.group(1)) if m else None
 
-            key_primary = (gen_idx, scan, run, str(target_coup) if target_coup is not None else None, str(br_mu) if br_mu is not None else None, mass_val_str)
+            target_coup_norm = _norm_float_str(target_coup) if target_coup is not None else None
+            br_mu_norm = _norm_float_str(br_mu) if br_mu is not None else None
+
+            key_primary = (gen_idx, scan, run, target_coup_norm, br_mu_norm, mass_val_str)
             if key_primary in processed_by_gen_run:
                 continue
 
-            key_fp = (bf, str(target_coup) if target_coup is not None else None, str(br_mu) if br_mu is not None else None, mass_val_str)
+            key_fp = (bf, target_coup_norm, br_mu_norm, mass_val_str)
             if key_fp in processed_by_filepath:
                 continue
 
-            key_fn = (fname, str(target_coup) if target_coup is not None else None, str(br_mu) if br_mu is not None else None, mass_val_str)
+            key_fn = (fname, target_coup_norm, br_mu_norm, mass_val_str)
             if key_fn in processed_by_filename:
                 continue
 
