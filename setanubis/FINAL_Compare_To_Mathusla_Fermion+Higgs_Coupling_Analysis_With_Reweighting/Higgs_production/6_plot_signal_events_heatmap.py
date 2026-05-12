@@ -9,7 +9,7 @@ acceptance is computed as a BR-weighted average over channels:
     acceptance_overall = sum_i BR(a->i) * (N_{i,sel} / N_{i,gen})
 
 Cross-section and BR(h->Z a) are computed using the helper in
-`4_Higgs_ggF_Zax_Cross_Section.py` (imported dynamically). ALP partial
+`5_Higgs_ggF_Zax_Cross_Section.py` (imported dynamically). ALP partial
 widths / branching ratios are computed using the analytic fermionic
 partial-width formula used in the per-channel extraction scripts
 (see `*_Decay_Channel/2_extract_selection_data.py`).
@@ -284,7 +284,7 @@ def main():
                         default='/usera/fs568/set-anubis/Assets/UFO/ALP_linear_UFO_WIDTH_modified',
                         help='UFO directory providing decays/parameters')
     parser.add_argument('--cross-section-script', type=str,
-                        default='/usera/fs568/set-anubis/setanubis/FINAL_Compare_To_Mathusla_Fermion+Higgs_Coupling_Analysis_With_Reweighting/Higgs_production/4_Higgs_ggF_Zax_Cross_Section.py',
+                        default='/usera/fs568/set-anubis/setanubis/FINAL_Compare_To_Mathusla_Fermion+Higgs_Coupling_Analysis_With_Reweighting/Higgs_production/5_Higgs_ggF_Zax_Cross_Section.py',
                         help='Path to Higgs cross-section helper')
     parser.add_argument('--output-dir', type=str, default='/usera/fs568/set-anubis/setanubis/FINAL_Compare_To_Mathusla_Fermion+Higgs_Coupling_Analysis_With_Reweighting/Higgs_production/Plots', help='Where to save plots and CSVs')
     parser.add_argument('--luminosity', type=float, default=3000.0, help='Integrated luminosity [fb^-1]')
