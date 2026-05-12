@@ -47,6 +47,39 @@ from SetAnubis.core.Selection.adapters.input.ATLASCavernSelectionGeometryAdapter
 from SetAnubis.core.Geometry.adapters.ATLASCavernGeometry import ATLASCavernGeometry, ATLASCavernGeometryConfig, GeometryRegion
 import math
 
+
+def _parse_int_like(val):
+    """Parse integer-like values robustly from various CSV representations.
+
+    Returns an int or None if value is missing/unparseable.
+    Accepts ints, floats, and strings like '3', '3.0', ' 3 '.
+    """
+    try:
+        if val is None:
+            return None
+        # Handle pandas NaN floats
+        try:
+            if isinstance(val, float) and math.isnan(val):
+                return None
+        except Exception:
+            pass
+
+        if isinstance(val, int):
+            return int(val)
+        if isinstance(val, float):
+            return int(val)
+
+        s = str(val).strip()
+        if s == '':
+            return None
+        # Convert to float then to int (handles '3.0', '3e0', etc.)
+        f = float(s)
+        if math.isnan(f):
+            return None
+        return int(f)
+    except Exception:
+        return None
+
 # ------------------
 # Configuration (edit these defaults)
 # ------------------
@@ -568,9 +601,9 @@ Examples:
         processed_by_filename = set()
 
         for _, row in existing_df.iterrows():
-            gen_idx = int(row['generated_events_index']) if 'generated_events_index' in existing_df.columns and pd.notna(row['generated_events_index']) else None
-            scan_val = int(row['scan']) if 'scan' in existing_df.columns and pd.notna(row['scan']) else None
-            run_val = int(row['run']) if 'run' in existing_df.columns and pd.notna(row['run']) else None
+            gen_idx = _parse_int_like(row['generated_events_index']) if 'generated_events_index' in existing_df.columns and pd.notna(row['generated_events_index']) else None
+            scan_val = _parse_int_like(row['scan']) if 'scan' in existing_df.columns and pd.notna(row['scan']) else None
+            run_val = _parse_int_like(row['run']) if 'run' in existing_df.columns and pd.notna(row['run']) else None
             target_coup_norm = _norm_float_str(row['target_coupling']) if 'target_coupling' in existing_df.columns and pd.notna(row['target_coupling']) else None
             br_mu_norm = _norm_float_str(row['BR_mu']) if 'BR_mu' in existing_df.columns and pd.notna(row['BR_mu']) else None
             
