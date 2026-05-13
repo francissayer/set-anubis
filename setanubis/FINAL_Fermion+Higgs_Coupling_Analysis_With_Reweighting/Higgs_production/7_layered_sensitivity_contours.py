@@ -264,8 +264,8 @@ def main():
     mass_vals = np.sort(np.unique([k[0] for k in keys]))
     caphi_vals = np.sort(np.unique([k[1] for k in keys]))
     
-    target_couplings = [1.0, 0.1, 0.015]
-    linestyles = {1.0: 'solid', 0.1: 'dashed', 0.015: 'dotted'}
+    target_couplings = [0.72, 0.05, 0.005]
+    linestyles = {0.72: 'solid', 0.05: 'dashed', 0.005: 'dotted'}
     
     gamma_h_sm = float(args.gamma_h_sm) if args.gamma_h_sm else float(ns.get('WH', 0.00407))
     lumi_pb = args.luminosity * 1000.0
@@ -335,7 +335,7 @@ def main():
     ax.set_yscale('log')
     ax.set_xlabel('ALP Mass [GeV]', fontsize=14)
     ax.set_ylabel(r'Coupling $C_{a\Phi}$', fontsize=14)
-    ax.set_title(f'Layered Sensitivity: $pp\\to H \\to Z a$ ({args.target_events} Events)', fontsize=16)
+    ax.set_title(f'Expected Signal Events for Fermion-Coupled ALPs: $pp\\to H \\to Z a$ ({args.target_events} Events)', fontsize=16)
     plt.tight_layout()
 
     out_path = Path(args.output_dir) / 'layered_sensitivity_contours.png'
