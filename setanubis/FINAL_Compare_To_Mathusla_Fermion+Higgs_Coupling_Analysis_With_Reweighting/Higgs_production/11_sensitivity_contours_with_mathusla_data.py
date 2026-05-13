@@ -2,12 +2,12 @@
 Plot sensitivity contours from an extended Higgs signal-events CSV.
 
 Reads `Plots/higgs_signal_events_data.csv` (produced by
-`5_plot_signal_events_heatmap.py`) and draws a heatmap of expected signal
+`7_plot_signal_events_heatmap.py`) and draws a heatmap of expected signal
 events with contour lines at specified event counts. One contour is
 highlighted at 4 events by default.
 
 Usage:
-    python 6_sensitivity_contours.py --csv /path/to/higgs_signal_events_data.csv
+    python 8_sensitivity_contours.py --csv /path/to/higgs_signal_events_data.csv
 
 """
 import os
@@ -398,10 +398,11 @@ def _collect_experiment_contour_handles(ax, base_dir=None, patterns=None):
             if d_up.startswith('LHC'):
                 plot_color = 'green'
             elif d_up.startswith('MATHUSLA40'):
-                # Distinct, high-visibility color for MATHUSLA40
-                plot_color = 'orange'
-            elif d_up.startswith('MATHUSLA'):
+                # Swap: use the MATHUSLA200 color for MATHUSLA40
                 plot_color = 'red'
+            elif d_up.startswith('MATHUSLA'):
+                # Swap: use orange for the original MATHUSLA (MATHUSLA200)
+                plot_color = 'orange'
             elif d_up.startswith('ANUBIS'):
                 plot_color = 'blue'
             else:
@@ -1338,10 +1339,10 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
             if 'higgs_signal_events_data' in grp_lower:
                 color = 'blue'
             elif grp_lower == 'mathusla40':
-                # Use a distinct color for MATHUSLA40 overlays
-                color = 'orange'
-            elif grp_lower == 'mathusla' or grp_lower == 'mathusla200':
+                # Use swapped color (red) for MATHUSLA40 overlays
                 color = 'red'
+            elif grp_lower == 'mathusla' or grp_lower == 'mathusla200':
+                color = 'orange'
             else:
                 cidx = group_to_color_idx.get(grp, idx)
                 color = _tab10_color_by_index(cidx)

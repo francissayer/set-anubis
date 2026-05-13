@@ -2,12 +2,12 @@
 Plot sensitivity contours from an extended Higgs signal-events CSV.
 
 Reads `Plots/higgs_signal_events_data.csv` (produced by
-`5_plot_signal_events_heatmap.py`) and draws a heatmap of expected signal
+`7_plot_signal_events_heatmap.py`) and draws a heatmap of expected signal
 events with contour lines at specified event counts. One contour is
 highlighted at 4 events by default.
 
 Usage:
-    python 6_sensitivity_contours.py --csv /path/to/higgs_signal_events_data.csv
+    python 8_sensitivity_contours.py --csv /path/to/higgs_signal_events_data.csv
 
 """
 import os
@@ -652,9 +652,9 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
             if 'higgs_signal_events_data' in grp_lower:
                 color = 'blue'
             elif grp_lower == 'mathusla40':
-                color = 'orange'
-            elif grp_lower == 'mathusla' or grp_lower == 'mathusla200':
                 color = 'red'
+            elif grp_lower == 'mathusla' or grp_lower == 'mathusla200':
+                color = 'orange'
             else:
                 cidx = group_to_color_idx.get(grp, idx)
                 color = _tab10_color_by_index(cidx)
