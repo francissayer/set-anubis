@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Plot ALP partial widths and proper lifetime vs mass using UFO formulas.
+"""Plot ALP partial widths, branching ratios and proper lifetime vs mass.
 
 This script evaluates the analytic ALP partial-width expressions provided
 by the project's UFO model (Assets/UFO/ALP_linear_UFO_WIDTH) through the
 `Width_Calculator.py` adapter and the `SetAnubis` interfaces. It produces
-two plots saved to the `setanubis/` directory:
+three plots saved to the `setanubis/` directory:
 
 - `alp_partial_widths_vs_mass_symlog.pdf`: partial widths for each decay
     channel (symlog Y axis, log X axis) with kinematic thresholds marked.
+- `alp_branching_ratios_vs_mass.pdf`: branching ratios (BR = partial / total)
+    for each channel vs mass (log X), with thresholds overlaid.
 - `alp_ctau_vs_mass.pdf`: ALP proper decay length `c·tau` (meters) vs mass
     (log-log) with example detector radii overlayed.
 
@@ -21,7 +23,8 @@ Quick usage:
 
 To change couplings or other parameters, edit the `sa.set_leaf_param(...)`
 calls in the `main()` function. Thresholds are read from the UFO parameters
-and drawn at `2*m_i` for relevant SM masses.
+and drawn at `2*m_i` for relevant SM masses. The branching-ratio plot
+handles zero or vanishing total widths by ignoring those mass points.
 """
 import os
 import numpy as np
@@ -35,6 +38,12 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 UFO_PATH = os.path.join(CURRENT_DIR, '..', 'Assets', 'UFO', 'ALP_linear_UFO_WIDTH')
 PY_SCRIPT_PATH = os.path.join(CURRENT_DIR, 'Width_Calculator.py')
 
+# ATLAS style for plots
+import mplhep as hep
+# Set the ATLAS style
+plt.style.use(hep.style.ATLAS) 
+# # Add the ATLAS label
+# hep.atlas.label(label="Internal", data=True, lumi=139)
 
 def main():
     out_dir = os.path.join(CURRENT_DIR)
@@ -168,6 +177,38 @@ def main():
     plt.tight_layout()
     plt.savefig(out_pdf_pw_symlog, bbox_inches='tight')
     print(f"Wrote: {out_pdf_pw_symlog}")
+
+    # --- Branching ratios plot (BR = partial / total) ---
+    total_pos = np.where(total <= 0, np.nan, total)
+    plt.figure(figsize=(10, 6))
+    for name in results:
+        arr = np.array(results[name])
+        with np.errstate(invalid='ignore', divide='ignore'):
+            br_arr = arr / total_pos
+        if np.all(np.isnan(br_arr)) or np.nanmax(br_arr) <= 0:
+            continue
+        plt.plot(masses, br_arr, label=name, alpha=0.8)
+
+    plt.xscale('log')
+    plt.ylim(0, 1)
+    plt.xlabel('ALP mass $m_a$ [GeV]')
+    plt.ylabel('Branching ratio')
+    plt.title('ALP branching ratios vs mass', pad=14)
+    plt.legend(fontsize='small', ncol=2, loc='upper left', bbox_to_anchor=(0.15, 0.98))
+    plt.grid(which='both', linestyle='--', alpha=0.25)
+
+    ax = plt.gca()
+    y_top = ax.get_ylim()[1]
+    for pname, thr in thresholds.items():
+        if thr >= masses[0] and thr <= masses[-1]:
+            ax.axvline(thr, color='gray', linestyle='--', alpha=0.6)
+            lab = param_label.get(pname, pname)
+            ax.text(thr * 1.001, y_top * 0.9, f"2*{lab}", rotation=90, color='gray', fontsize=8, va='top', ha='left')
+
+    out_pdf_br = os.path.join(out_dir, 'alp_branching_ratios_vs_mass.pdf')
+    plt.tight_layout()
+    plt.savefig(out_pdf_br)
+    print(f"Wrote: {out_pdf_br}")
 
     # --- Proper lifetime c*tau (meters) plot ---
     # hbar*c in GeV*m: hbar (GeV*s) * c (m/s)
