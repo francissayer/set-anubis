@@ -46,12 +46,12 @@ def calculate_couplings(input_csv, output_csv, BR_muon, Lambda_scale=1000.0, fa_
     # ==========================================
     # Constants (in GeV unless stated otherwise)
     # ==========================================
-    m_h = ns['MH']      # Higgs mass (from UFO parameters)
+    m_h = ns['MH']      # Higgs mass 125.00 GeV (from UFO parameters)
     m_Z = ns['MZ']      # Z boson mass (from UFO parameters)
     m_mu = 0.10566          # Muon mass (mass of muon from UFO)
     
     # Standard Model Higgs total width (approx 4.07 MeV)
-    Gamma_SM_H = 4.07e-3
+    Gamma_SM_H = 4.088e-3 # From Table 178 of https://arxiv.org/abs/1610.07922 for 125.00 GeV Higgs mass
     
     # Conversion factor: hbar * c in GeV * m
     hbar_c = 1.973269804e-16
