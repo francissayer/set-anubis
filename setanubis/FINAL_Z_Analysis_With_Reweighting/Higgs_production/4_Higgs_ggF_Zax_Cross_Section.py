@@ -171,7 +171,7 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 
 	# Constants for the calculation (clarity/safety: prefer explicit UFO externals)
-	m_h = ns['MH']
+	m_h = ns['MH'] # 125.00 GeV
 	m_Z = ns['MZ']
 	N_c = 3  # number of colors (not present in UFO parameters)
 	y_t = ns['yt']
@@ -179,8 +179,8 @@ if __name__ == "__main__":
 
 	# Use UFO defaults for f_a and Higgs SM width when available, but allow CLI override
 	f_a = 1000
-	sigma_ggF = 54.61
-	gamma_h_SM = 4.07e-3
+	sigma_ggF = 54.67 # From Table 190 of https://arxiv.org/abs/1610.07922 for 125.00 GeV Higgs mass
+	gamma_h_SM = 4.088e-3 # From Table 178 of https://arxiv.org/abs/1610.07922 for 125.00 GeV Higgs mass
 	m_a = 0.1
 	C_aphi = 0.1
 
