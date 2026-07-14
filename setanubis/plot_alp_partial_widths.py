@@ -143,35 +143,57 @@ def main():
     # --- Partial widths plot (symlog Y, log X) ---
     plt.figure(figsize=(10, 6))
     param_label = {'Me':'e', 'MMU':'mu', 'MTA':'tau', 'MU':'u', 'MD':'d', 'MC':'c', 'MS':'s', 'MB':'b', 'MW':'W', 'MZ':'Z', 'MT':'t'}
+
+    # mapping channel keys to LaTeX labels
+    label_map = {
+        'gamma_gamma': r'$\gamma\gamma$',
+        'gamma_Z': r'$\gamma Z$',
+        'gg': r'$gg$',
+        'bb': r'$b\bar{b}$',
+        'cc': r'$c\bar{c}$',
+        'dd': r'$d\bar{d}$',
+        'ss': r'$s\bar{s}$',
+        'uu': r'$u\bar{u}$',
+        'tt': r'$t\bar{t}$',
+        'ee': r'$e^+e^-$',
+        'mumu': r'$\mu^+\mu^-$',
+        'tautau': r'$\tau^+\tau^-$',
+        'WW': r'$W^+W^-$',
+        'ZZ': r'$ZZ$',
+    }
+
     for name in results:
         arr = np.array(results[name])
         if np.all(arr <= 0):
             continue
-        plt.plot(masses, arr, label=name, alpha=0.7)
+        lbl = label_map.get(name, name)
+        plt.plot(masses, arr, label=lbl, alpha=0.85, linewidth=2.5)
 
     # log x, symlog y to show linear behavior near zero and log behavior elsewhere
     plt.xscale('log')
     plt.yscale('symlog', linthresh=1e-23)
 
     # total width (plotted on same axes)
-    plt.plot(masses, total, label='total', color='k', lw=2.5)
+    plt.plot(masses, total, label='Total', color='k', lw=3.5)
 
-    plt.xlabel('ALP mass $m_a$ [GeV]')
-    plt.ylabel('Partial width [GeV] (symlog y)')
-    plt.title('ALP partial widths vs mass (symlog y, log x)', pad=14)
-    # place legend inside the plot near the top-left but shifted right
-    # so it does not overlap the low-mass thresholds (muon/strange)
-    plt.legend(fontsize='small', ncol=2, loc='upper left', bbox_to_anchor=(0.15, 0.98))
+    plt.xlabel(r'ALP Mass $m_a$ [GeV]', fontsize=20)
+    plt.ylabel(r'Partial Width $\Gamma$ [GeV]', fontsize=20)
+    #plt.title('ALP partial widths vs mass (symlog y, log x)', pad=14)
+    # place legend to the right of the plot (outside)
+    fig = plt.gcf()
+    fig.subplots_adjust(right=0.75)
+    plt.legend(loc='center left', bbox_to_anchor=(1.02, 0.5), fontsize=20, ncol=1)
     plt.grid(which='both', linestyle='--', alpha=0.25)
 
-    # thresholds on symlog plot
+    # thresholds on symlog plot: draw unlabeled dashed grey vertical lines for fermions only
     ax = plt.gca()
-    y_top = ax.get_ylim()[1]
     for pname, thr in thresholds.items():
+        # skip W and Z thresholds
+        if pname in ('MW', 'MZ'):
+            continue
         if thr >= masses[0] and thr <= masses[-1]:
-            ax.axvline(thr, color='gray', linestyle='--', alpha=0.6)
-            lab = param_label.get(pname, pname)
-            ax.text(thr * 1.001, y_top * 0.9, f"2*{lab}", rotation=90, color='gray', fontsize=8, va='top', ha='left')
+            # draw below plotted curves
+            ax.axvline(thr, color='grey', linestyle='--', linewidth=2.0, zorder=0, alpha=0.8)
 
     out_pdf_pw_symlog = os.path.join(out_dir, 'alp_partial_widths_vs_mass_symlog.pdf')
     plt.tight_layout()
@@ -181,29 +203,35 @@ def main():
     # --- Branching ratios plot (BR = partial / total) ---
     total_pos = np.where(total <= 0, np.nan, total)
     plt.figure(figsize=(10, 6))
+    # mapping labels for branching-ratio plot (reuse label_map)
     for name in results:
         arr = np.array(results[name])
         with np.errstate(invalid='ignore', divide='ignore'):
             br_arr = arr / total_pos
         if np.all(np.isnan(br_arr)) or np.nanmax(br_arr) <= 0:
             continue
-        plt.plot(masses, br_arr, label=name, alpha=0.8)
+        lbl = label_map.get(name, name)
+        plt.plot(masses, br_arr, label=lbl, alpha=0.9, linewidth=2.5)
 
     plt.xscale('log')
     plt.ylim(0, 1)
-    plt.xlabel('ALP mass $m_a$ [GeV]')
-    plt.ylabel('Branching ratio')
-    plt.title('ALP branching ratios vs mass', pad=14)
-    plt.legend(fontsize='small', ncol=2, loc='upper left', bbox_to_anchor=(0.15, 0.98))
+    plt.xlabel(r'ALP Mass $m_a$ [GeV]', fontsize=20)
+    plt.ylabel(r'Branching Ratio', fontsize=20)
+    #plt.title('ALP branching ratios vs mass', pad=14)
+    # place legend to the right of the plot (outside)
+    fig = plt.gcf()
+    fig.subplots_adjust(right=0.75)
+    plt.legend(loc='center left', bbox_to_anchor=(1.02, 0.5), fontsize=20, ncol=1)
     plt.grid(which='both', linestyle='--', alpha=0.25)
 
     ax = plt.gca()
-    y_top = ax.get_ylim()[1]
     for pname, thr in thresholds.items():
+        # skip W and Z thresholds
+        if pname in ('MW', 'MZ'):
+            continue
         if thr >= masses[0] and thr <= masses[-1]:
-            ax.axvline(thr, color='gray', linestyle='--', alpha=0.6)
-            lab = param_label.get(pname, pname)
-            ax.text(thr * 1.001, y_top * 0.9, f"2*{lab}", rotation=90, color='gray', fontsize=8, va='top', ha='left')
+            # draw below plotted curves
+            ax.axvline(thr, color='grey', linestyle='--', linewidth=2.0, zorder=0, alpha=0.8)
 
     out_pdf_br = os.path.join(out_dir, 'alp_branching_ratios_vs_mass.pdf')
     plt.tight_layout()
@@ -221,28 +249,30 @@ def main():
     ctau_m = hbar_c_GeV_m / total_pos
 
     plt.figure(figsize=(10, 6))
-    plt.loglog(masses, np.maximum(ctau_m, 1e-30), label='c·tau (m)', color='C0')
+    plt.loglog(masses, np.maximum(ctau_m, 1e-30), label='c·tau (m)', color='C0', linewidth=2.5)
 
     # overlay detector radii (example: inner detector/cavern)
     detector_radii_m = {'InnerDetector': 1.2, 'MS': 9.5, 'Cavern': 20.0}
     for name, r in detector_radii_m.items():
-        plt.axhline(r, color='gray', linestyle='--', alpha=0.6)
-        plt.text(masses[3], r * 1.1, name, color='gray')
+        # draw detector reference lines beneath plotted curves
+        plt.axhline(r, color='gray', linestyle='--', alpha=0.6, zorder=0, linewidth=2.0)
 
-    plt.xlabel('ALP mass $m_a$ [GeV]')
-    plt.ylabel('c·tau [m]')
-    plt.title('ALP proper decay length c·tau vs mass', pad=14)
+    plt.xlabel(r'ALP Mass $m_a$ [GeV]', fontsize=20)
+    plt.ylabel(r'Proper Decay Length $c \tau$ [m]', fontsize=20)
+    #plt.title('ALP proper decay length c·tau vs mass', pad=14)
     plt.grid(which='both', linestyle='--', alpha=0.25)
-    plt.legend()
+    # Legend removed for c·tau plot per request
 
     # vertical lines at thresholds on c*tau plot
     ax = plt.gca()
     ymin, ymax = ax.get_ylim()
     for pname, thr in thresholds.items():
+        # skip W and Z thresholds
+        if pname in ('MW', 'MZ'):
+            continue
         if thr >= masses[0] and thr <= masses[-1]:
-            ax.axvline(thr, color='gray', linestyle='--', alpha=0.5)
-            lab = param_label.get(pname, pname)
-            ax.text(thr * 1.001, ymax * 0.9, f"2*{lab}", rotation=90, color='gray', fontsize=8, va='top', ha='left')
+            # draw below plotted curves
+            ax.axvline(thr, color='grey', linestyle='--', linewidth=2.0, zorder=0, alpha=0.8)
 
     out_pdf_ctau = os.path.join(out_dir, 'alp_ctau_vs_mass.pdf')
     plt.tight_layout()

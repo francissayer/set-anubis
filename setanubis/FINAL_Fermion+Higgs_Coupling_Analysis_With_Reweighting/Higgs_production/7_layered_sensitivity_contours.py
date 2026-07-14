@@ -301,8 +301,7 @@ def main():
     ax.scatter(mass_arr.flatten(), caphi_arr.flatten(), facecolors='none', edgecolors='lightgrey', 
                s=120, linewidths=0.8, zorder=2)
 
-    legend_handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor='none', 
-                             markeredgecolor='lightgrey', markersize=10, label='Grid Points')]
+    legend_handles = []
     
     for czh in target_couplings:
         try:
@@ -328,14 +327,28 @@ def main():
             print(f'Warning: failed to draw contour for C_Zh^eff = {czh}: {e}')
 
     if legend_handles:
-        ax.legend(handles=legend_handles, loc='lower left', 
-                  title=f'Sensitivity ({args.target_events} events)', framealpha=0.9)
+        ax.legend(handles=legend_handles, loc='lower left', framealpha=0.9, fontsize=18)
 
     ax.set_xscale('log')
+    ax.set_xlim(10**(-1.75), 10**2)
     ax.set_yscale('log')
-    ax.set_xlabel('ALP Mass [GeV]', fontsize=14)
-    ax.set_ylabel(r'Coupling $C_{a\Phi}$', fontsize=14)
-    ax.set_title(f'Expected Signal Events for Fermion-Coupled ALPs: $pp\\to H \\to Z a$ ({args.target_events} Events)', fontsize=16)
+
+    # Add unlabeled dashed grey vertical lines at twice SM charged-lepton and quark masses
+    sm_m = {
+        'd': 0.00504, 'u': 0.00255, 's': 0.101, 'c': 1.27,
+        'b': 4.7, 't': 172.0, 'e': 0.000511, 'mu': 0.10566, 'tau': 1.777,
+    }
+    fermions = ['e', 'mu', 'tau', 'u', 'd', 's', 'c', 'b', 't']
+    x0, x1 = ax.get_xlim()
+    for f in fermions:
+        m2 = 2.0 * sm_m[f]
+        if m2 >= x0 and m2 <= x1:
+            # Draw vertical lines above the circle markers (scatter zorder=2)
+            ax.axvline(m2, color='grey', linestyle='--', linewidth=2.0, zorder=3, alpha=0.8)
+
+    ax.set_xlabel(r'ALP Mass $m_a$ [GeV]', fontsize=20)
+    ax.set_ylabel(r'Fermion Coupling $C_{a\Phi}$', fontsize=20)
+    #ax.set_title(f'Expected Signal Events for Fermion-Coupled ALPs: $pp\\to H \\to Z a$ ({args.target_events} Events)', fontsize=16)
     plt.tight_layout()
 
     out_path = Path(args.output_dir) / 'layered_sensitivity_contours.png'

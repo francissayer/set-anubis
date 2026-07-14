@@ -386,33 +386,54 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
         # Build a dynamic legend instead of inline contour labels
         # ---------------------------------------------------------
         legend_handles = []
-        
+
+        # Helper to format numeric levels using LaTeX-style scientific notation
+        def _format_level_label(lvl):
+            try:
+                if lvl == 0:
+                    return '0 Events'
+                exp = int(np.floor(np.log10(abs(lvl))))
+                mant = lvl / (10 ** exp)
+                # If mantissa is ~1, display as 10^{exp}
+                if np.isclose(mant, 1.0):
+                    return rf'$10^{{{exp}}}$ Events'
+                # Otherwise show mantissa × 10^{exp}
+                return rf'${mant:.2g}\times10^{{{exp}}}$ Events'
+            except Exception:
+                return f'{lvl:g} Events'
+
         # Add handles for standard contour levels
         if cs_main is not None and hasattr(cs_main, 'levels'):
             for lvl in cs_main.levels:
-                legend_handles.append(Line2D([0], [0], color='black', lw=1.6, label=f'{lvl:g} events'))
-                
-        # Add handles for highlighted contour levels
-        if cs4 is not None and hasattr(cs4, 'levels'):
-            for lvl in cs4.levels:
-                # Add the solid line for the contour border
-                legend_handles.append(Line2D([0], [0], color='red', lw=3.0, label=f'{lvl:g} events (highlight)'))
+                label = _format_level_label(lvl)
+                legend_handles.append(Line2D([0], [0], color='black', lw=1.6, label=label))
 
         if legend_handles:
-            # Draw the legend and place it in the bottom left
-            legend = ax.legend(handles=legend_handles, loc='lower left', title='Contour Levels', 
-                               framealpha=0.9, edgecolor='grey')
+            # Draw the legend and place it in the bottom left (no title)
+            legend = ax.legend(handles=legend_handles, loc='lower left', framealpha=0.9, edgecolor='grey', fontsize=18)
             legend.set_zorder(100) # Keep the legend above the scatter plot
 
-    cbar = fig.colorbar(sc, ax=ax, label='Expected Signal Events', pad=0.02)
+    cbar = fig.colorbar(sc, ax=ax, label=r'Expected Number of Signal Events $N_\text{sig}$', pad=0.02)
 
     ax.set_xscale('log')
     ax.set_yscale('log')
-    ax.set_xlabel('ALP Mass [GeV]', fontsize=12)
-    ax.set_ylabel(r'Coupling $C_{a\Phi}$', fontsize=12)
+    ax.set_xlabel(r'ALP Mass $m_a$ [GeV]', fontsize=20)
+    ax.set_ylabel(r'Fermion Coupling $C_{a\Phi}$', fontsize=20)
+    # Add unlabeled dashed grey vertical lines at twice SM charged-lepton and quark masses
+    sm_m = {
+        'd': 0.00504, 'u': 0.00255, 's': 0.101, 'c': 1.27,
+        'b': 4.7, 't': 172.0, 'e': 0.000511, 'mu': 0.10566, 'tau': 1.777,
+    }
+    fermions = ['e', 'mu', 'tau', 'u', 'd', 's', 'c', 'b', 't']
+    x0, x1 = ax.get_xlim()
+    for f in fermions:
+        m2 = 2.0 * sm_m[f]
+        if m2 >= x0 and m2 <= x1:
+            # Draw vertical lines above the circle markers (scatter zorder=3)
+            ax.axvline(m2, color='grey', linestyle='--', linewidth=2.0, zorder=4, alpha=0.8)
     if title is None:
         title = 'Sensitivity Contours: Expected Signal Events'
-    ax.set_title(title, fontsize=14)
+    #ax.set_title(title, fontsize=14)
     ax.grid(True, which='both', alpha=0.3, linestyle='--', linewidth=0.5)
     plt.tight_layout()
 

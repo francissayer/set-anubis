@@ -56,7 +56,7 @@ def plot_bar(labels, values, title, out_pdf):
 
 def main():
     ap = argparse.ArgumentParser(description="Run selection and plot cutflow from a bundle")
-    ap.add_argument("--bundle", default="/usera/fs568/set-anubis/ALP_Z_Runs/ALP_Z_sampledfs_Scan_22_Run_3.pkl.gz", help="Path to gzipped bundle pickle")
+    ap.add_argument("--bundle", default="/raid/anubis/sensitivityStudyData/ALPs/fermionCoupled/ALP_Z_FINAL_Default_Lifetime_With_Reweighting/mumu_Decay_Channel/Generated_Events_1/ALP_Z_sampledfs_Scan_1_Run_4.pkl.gz", help="Path to gzipped bundle pickle")
     ap.add_argument("--sel-mode", default="standard", help="Selection mode (standard/2dv if available)")
     ap.add_argument("--name", default="sample", help="Sample name label for plots")
     ap.add_argument("--outdir", default="/usera/fs568/set-anubis/setanubis", help="Directory to save plots (default: outputs/)" )

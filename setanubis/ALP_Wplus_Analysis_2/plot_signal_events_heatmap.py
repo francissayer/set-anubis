@@ -2,7 +2,7 @@
 Plot heat map of expected signal events vs mass and coupling CaPhi.
 
 CORRECTED SIGNAL CALCULATION:
-    N_signal = L_int × σ(pp→Z+ALP) × ε_acceptance × ε_selection × BR(Z→visible)`
+    N_signal = L_int × σ(pp→Z+ALP) × ε_acceptance × ε_selection × BR(Z→visible)
 
 WHERE:
     - L_int: Integrated luminosity (default: 3000 fb⁻¹ for HL-LHC)
@@ -25,9 +25,13 @@ import matplotlib.colors as colors
 import matplotlib.patheffects as path_effects
 from pathlib import Path
 import glob
+import mplhep as hep
+
+# Use ATLAS style for consistent aesthetics with sensitivity-contour plots
+plt.style.use(hep.style.ATLAS)
 
 
-def extract_cross_section_from_banner(scan, run, runs_base_path='/raid/anubis/sensitivityStudyData/ALPs/fermionCoupled/ALP_Z_FINAL_Default_Lifetime/Generated_Events_1'):
+def extract_cross_section_from_banner(scan, run, runs_base_path='/usera/fs568/set-anubis/ALP_W+_Runs'):
     """Extract cross-section from MadGraph scan_run text file.
     
     Parameters:
@@ -37,14 +41,14 @@ def extract_cross_section_from_banner(scan, run, runs_base_path='/raid/anubis/se
     run : int
         Run number
     runs_base_path : str
-        Base path to ALP_Z_Runs directory
+        Base path to ALP_W+_Runs directory
     
     Returns:
     --------
     float or None
         Cross-section in pb, or None if not found
     """
-    scan_dir = f'ALP_axZ_scan_{scan}'
+    scan_dir = f'ALP_axW+_scan_{scan}'
     events_dir = os.path.join(runs_base_path, scan_dir, 'Events')
     
     # Find the scan_run file (could be scan_run_0[1-5].txt, scan_run_01[-]run_01.txt, etc.)
@@ -90,7 +94,7 @@ def load_cutflow_data(csv_path):
     return df
 
 
-def calculate_signal_events(df, integrated_lumi=3000, selection_eff=0.5, br_z_visible=0.8, runs_base_path='/raid/anubis/sensitivityStudyData/ALPs/fermionCoupled/ALP_Z_FINAL_Default_Lifetime/Generated_Events_1'):
+def calculate_signal_events(df, integrated_lumi=3000, selection_eff=0.5, br_z_visible=1.0, runs_base_path='/usera/fs568/set-anubis/ALP_W+_Runs'):
     """Calculate N_signal = L_int × σ × ε_acceptance × ε_selection × BR_Z for each point.
     
     Extracts cross-sections from MadGraph scan_run text files and calculates acceptance
@@ -218,7 +222,7 @@ def plot_heatmap(mass_vals, caphi_vals, heatmap_data, output_path,
     vmax_override : float, optional
         Override maximum value for color scale
     """
-    fig, ax = plt.subplots(figsize=(12, 9))
+    fig, ax = plt.subplots(figsize=(10, 8))
 
     # Determine color scale using positive (non-zero) values
     valid_data = heatmap_data[~np.isnan(heatmap_data)]
@@ -231,133 +235,111 @@ def plot_heatmap(mass_vals, caphi_vals, heatmap_data, output_path,
         vmin = vmin_override if vmin_override is not None else 1e-12
         vmax = vmax_override if vmax_override is not None else 1.0
 
+    # Use a copy of the colormap so we can set the 'bad' (NaN) color
+    cmap = plt.get_cmap('viridis').copy()
+    try:
+        cmap.set_bad('lightgrey')
+    except Exception:
+        pass
+
     if use_log_scale and vmax > 0:
         norm = colors.LogNorm(vmin=max(vmin, 1e-12), vmax=vmax)
-        cmap = plt.cm.viridis
     else:
         norm = None
-        cmap = plt.cm.viridis
 
-    # Unified: collect all points (mass, caphi, value)
-    all_points = []
-    for i, caphi in enumerate(caphi_vals):
-        for j, mass in enumerate(mass_vals):
-            value = heatmap_data[i, j]
-            if not np.isnan(value):
-                all_points.append((mass, caphi, value))
+    # Draw grid markers: empty grey circles for full grid, colored filled circles for positive values
+    mv = np.asarray(mass_vals, dtype=float)
+    cv = np.asarray(caphi_vals, dtype=float)
+    GX, GY = np.meshgrid(mv, cv)
+    GXr = GX.ravel()
+    GYr = GY.ravel()
 
-    im = None
-    if len(all_points) > 0:
-        all_points_arr = np.array(all_points, dtype=object)
-        mass_arr = all_points_arr[:, 0].astype(float)
-        caphi_arr = all_points_arr[:, 1].astype(float)
-        values_arr = all_points_arr[:, 2].astype(float)
-        idx_large = []
-        idx_small = []
-        log_mass_arr = np.log10(mass_arr)
-        for c in np.unique(caphi_arr):
-            mask = (caphi_arr == c)
-            masses = mass_arr[mask]
-            log_masses = log_mass_arr[mask]
-            vals = values_arr[mask]
-            idxs = np.where(mask)[0]
-            if len(masses) == 1:
-                idx_large.append(idxs[0])
-            else:
-                sorted_idx = np.argsort(masses)
-                sorted_masses = masses[sorted_idx]
-                sorted_log_masses = log_masses[sorted_idx]
-                sorted_vals = vals[sorted_idx]
-                sorted_idxs = idxs[sorted_idx]
-                cluster = [sorted_idxs[0]]
-                for ii in range(1, len(sorted_masses)):
-                    if abs(sorted_log_masses[ii] - sorted_log_masses[ii-1]) < 0.08:
-                        cluster.append(sorted_idxs[ii])
-                    else:
-                        if len(cluster) == 1:
-                            idx_large.append(cluster[0])
-                        else:
-                            idx_large.append(cluster[0])
-                            idx_large.append(cluster[-1])
-                            for mid in cluster[1:-1]:
-                                idx_small.append(mid)
-                        cluster = [sorted_idxs[ii]]
-                if len(cluster) == 1:
-                    idx_large.append(cluster[0])
-                else:
-                    idx_large.append(cluster[0])
-                    idx_large.append(cluster[-1])
-                    for mid in cluster[1:-1]:
-                        idx_small.append(mid)
-        idx_large = sorted(set(idx_large))
-        idx_small = sorted(set(idx_small))
+    # empty circles for the full grid layout (like contours script)
+    ax.scatter(GXr, GYr, facecolors='none', edgecolors='lightgrey', s=120, linewidths=0.8, zorder=2)
 
-        # Plot large boxes for outermost points (grey for zero, colored for nonzero)
-        if len(idx_large) > 0:
-            is_zero = (values_arr[idx_large] == 0)
-            if np.any(is_zero):
-                ax.scatter(mass_arr[idx_large][is_zero], caphi_arr[idx_large][is_zero],
-                           marker='s', s=800, facecolors='lightgrey', edgecolors='black', linewidths=0.5,
-                           label='0 LLPs', zorder=2)
-            if np.any(~is_zero):
-                ax.scatter(mass_arr[idx_large][~is_zero], caphi_arr[idx_large][~is_zero],
-                           c=values_arr[idx_large][~is_zero], cmap=cmap, norm=norm,
-                           marker='s', s=800, edgecolors='black', linewidths=0.5, alpha=1.0, zorder=2)
-
-        # Plot small dots for intermediate points (grey for zero, colored for nonzero)
-        if len(idx_small) > 0:
-            idx_small_only = [i for i in idx_small if i not in idx_large]
-            if idx_small_only:
-                is_zero = (values_arr[idx_small_only] == 0)
-                if np.any(is_zero):
-                    ax.scatter(mass_arr[idx_small_only][is_zero], caphi_arr[idx_small_only][is_zero],
-                               marker='o', s=30, c='lightgrey', edgecolors='none', alpha=0.8, zorder=3)
-                if np.any(~is_zero):
-                    ax.scatter(mass_arr[idx_small_only][~is_zero], caphi_arr[idx_small_only][~is_zero],
-                               c=values_arr[idx_small_only][~is_zero], cmap=cmap, norm=norm,
-                               marker='o', s=30, edgecolors='none', alpha=0.8, zorder=3)
-
-        # For colorbar, use all nonzero points
-        im = ax.scatter(mass_arr[values_arr != 0], caphi_arr[values_arr != 0], c=values_arr[values_arr != 0], cmap=cmap, norm=norm,
-                       marker='o', s=0)  # invisible, for colorbar
+    # Colored filled circles for positive values
+    vals_flat = heatmap_data.ravel()
+    pos_mask = ~np.isnan(vals_flat) & (vals_flat > 0)
+    if np.any(pos_mask):
+        mass_pos = GXr[pos_mask]
+        caphi_pos = GYr[pos_mask]
+        vals_pos = vals_flat[pos_mask].astype(float)
+        sc = ax.scatter(mass_pos, caphi_pos, c=vals_pos, cmap=cmap, norm=norm,
+                        marker='o', s=140, edgecolors='none', alpha=0.95, zorder=3)
     else:
-        im = ax.scatter([], [], c=[], cmap=cmap, norm=norm, marker='o', s=0)
+        sc = ax.scatter([], [], c=[], cmap=cmap, norm=norm, marker='o', s=0)
 
-    # Add colorbar
-    cbar = plt.colorbar(im, ax=ax, label=colorbar_label, pad=0.02)
+    # Add colorbar (use the colored scatter artist if available)
+    if 'sc' not in locals() or sc is None:
+        sc = ax.scatter([], [], c=[], cmap=cmap, norm=norm)
+    cbar = fig.colorbar(sc, ax=ax, label=colorbar_label, pad=0.02)
+    cbar.ax.tick_params(labelsize=14)
 
     # Set logarithmic scales
     ax.set_xscale('log')
     ax.set_yscale('log')
 
-    # Labels and title
-    ax.set_xlabel('ALP Mass [GeV]', fontsize=14)
-    ax.set_ylabel(r'Coupling $C_{a\phi}$', fontsize=14)
-    ax.set_title(title, fontsize=16, pad=20)
+    # Use geometric bin edges (same logic as sensitivity contours) so the
+    # discrete grid fills the plot without extra whitespace.
+    try:
+        mv = np.asarray(mass_vals, dtype=float)
+        cv = np.asarray(caphi_vals, dtype=float)
+
+        if mv.size > 1 and np.all(mv > 0):
+            gx = np.sqrt(mv[:-1] * mv[1:])
+            x_edges = np.concatenate(([mv[0] ** 2 / gx[0]], gx, [mv[-1] ** 2 / gx[-1]]))
+            ax.set_xlim(x_edges[0], x_edges[-1])
+        else:
+            ax.set_xlim(float(mv.min()) * 0.9, float(mv.max()) * 1.1)
+
+        if cv.size > 1 and np.all(cv > 0):
+            gy = np.sqrt(cv[:-1] * cv[1:])
+            y_edges = np.concatenate(([cv[0] ** 2 / gy[0]], gy, [cv[-1] ** 2 / gy[-1]]))
+            ax.set_ylim(y_edges[0], y_edges[-1])
+        else:
+            ax.set_ylim(float(cv.min()) * 0.9, float(cv.max()) * 1.1)
+    except Exception:
+        try:
+            ax.relim()
+            ax.autoscale_view()
+            ax.margins(0.06)
+        except Exception:
+            pass
+
+    # Add unlabeled dashed grey vertical lines at twice SM charged-lepton and quark masses
+    sm_m = {
+        'd': 0.00504, 'u': 0.00255, 's': 0.101, 'c': 1.27,
+        'b': 4.7, 't': 172.0, 'e': 0.000511, 'mu': 0.10566, 'tau': 1.777,
+    }
+    fermions = ['e', 'mu', 'tau', 'u', 'd', 's', 'c', 'b', 't']
+    x0, x1 = ax.get_xlim()
+    for f in fermions:
+        m2 = 2.0 * sm_m[f]
+        if m2 >= x0 and m2 <= x1:
+            ax.axvline(m2, color='grey', linestyle='--', linewidth=2.0, zorder=4, alpha=0.8)
+
+    # Labels and title (match contour aesthetics)
+    ax.set_xlabel(r'ALP Mass $m_a$ [GeV]', fontsize=20)
+    ax.set_ylabel(r'Fermion Coupling $C_{a\phi}$', fontsize=20)
+    #ax.set_title(title, fontsize=14, pad=20)
+    ax.tick_params(labelsize=14)
 
     # Grid
     ax.grid(True, which='both', alpha=0.3, linestyle='--', linewidth=0.5)
 
-    # Annotate every large box (idx_large) with formatted number
-    if len(all_points) > 0 and len(idx_large) > 0:
-        for idx in idx_large:
-            mval = mass_arr[idx]
-            cval = caphi_arr[idx]
-            value = values_arr[idx]
-            if value == 0:
-                text = '0'
-            elif abs(value) < 1:
-                text = f'{value:.2e}'
-            else:
-                text = f'{value:.2f}'
-            ax.text(mval, cval, text,
-                    ha='center', va='center',
-                    color='white', fontsize=8, fontweight='bold',
-                    path_effects=[path_effects.withStroke(linewidth=2, foreground='black')])
+    # (No numeric annotations on markers — use colored circles like contour plot)
 
     plt.tight_layout()
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"Saved heat map to {output_path}")
+    out_path = Path(output_path)
+    os.makedirs(out_path.parent or '.', exist_ok=True)
+    # Save PNG (raster) and PDF (vector) for publication-quality output
+    plt.savefig(str(out_path), dpi=300, bbox_inches='tight')
+    try:
+        pdf_path = out_path.with_suffix('.pdf')
+        plt.savefig(str(pdf_path), bbox_inches='tight')
+    except Exception:
+        pass
+    print(f"Saved heat map to {out_path}")
     plt.close()
 
 
@@ -381,20 +363,20 @@ Signal event calculation:
     parser.add_argument(
         '--csv', 
         type=str, 
-        default='/usera/fs568/set-anubis/setanubis/ALP_Z_Analysis_2/selection_cutflow_data_higgs_to_alp_Z.csv',
-        help='Path to cutflow CSV file (default: ALP_Z_Analysis_2/selection_cutflow_data_alp_Z.csv)'
+        default='/usera/fs568/set-anubis/setanubis/ALP_Wplus_Analysis_2/selection_cutflow_W+.csv',
+        help='Path to cutflow CSV file'
     )
     parser.add_argument(
         '--runs-path',
         type=str,
-        default='/raid/anubis/sensitivityStudyData/ALPs/fermionCoupled/Higgs_to_ALP_Z_FINAL_Default_Lifetime/Generated_Events_1',
-        help='Base path to ALP_Z_Runs directory with scan_run files (default: RAID Generated_Events_1)'
+        default='/raid/anubis/sensitivityStudyData/ALPs/fermionCoupled/ALP_W+_Runs_2/Generated_Events_1',
+        help='Base path to ALP_W+_Runs directory with scan_run files'
     )
     parser.add_argument(
         '--output-dir',
         type=str,
-        default='/usera/fs568/set-anubis/setanubis/ALP_Z_Analysis_2/Plots/Higgs_production',
-        help='Directory to save output plots (default: /usera/fs568/set-anubis/setanubis/ALP_Z_Analysis_2/Plots/Higgs_production)'
+        default='/usera/fs568/set-anubis/setanubis/ALP_Wplus_Analysis_2',
+        help='Directory to save output plots (default: current directory)'
     )
     parser.add_argument(
         '--luminosity',
@@ -411,8 +393,8 @@ Signal event calculation:
     parser.add_argument(
         '--br-z-visible',
         type=float,
-        default=0.8,
-        help='Branching ratio of Z to visible final states (default: 0.8)'
+        default=1.0,
+        help='Branching ratio of Z to visible final states (default: 1.0)'
     )
     # ALP visible branching ratio intentionally omitted — acceptance accounts for visible decays
     parser.add_argument(
@@ -489,7 +471,7 @@ Signal event calculation:
         os.path.join(args.output_dir, 'signal_events_heatmap_Z.png'),
         title=f'Expected Signal Events (pp → Z + ALP, L={args.luminosity} fb⁻¹)',
         use_log_scale=args.log_scale,
-        colorbar_label='Expected Signal Events'
+        colorbar_label=r'Expected Number of Signal Events $N_\text{sig}$'
     )
     
     # 2. Acceptance heatmap

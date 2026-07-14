@@ -53,6 +53,7 @@ except Exception:
 import mplhep as hep
 # Set the ATLAS style
 plt.style.use(hep.style.ATLAS) 
+# ANUBIS logo insertion removed: logos should be added in post-production.
 # # Add the ATLAS label
 # hep.atlas.label(label="Internal", data=True, lumi=139)
 
@@ -384,6 +385,7 @@ def _collect_experiment_contour_handles(ax, base_dir=None, patterns=None):
 
             is_br1 = (br is not None and np.isclose(br, 1.0))
             linestyle = '-' if is_br1 else ':'
+            # baseline widths: solid BR==1 thicker, dashed for BR<1
             lw = 2.8 if is_br1 else 1.6
             # Legend label: use dataset name only (no BR suffix).
             label = dataset
@@ -428,6 +430,17 @@ def _collect_experiment_contour_handles(ax, base_dir=None, patterns=None):
                 zord = 160
             else:
                 zord = 120
+            # baseline widths: solid BR==1 thicker, dashed for BR<1
+            lw = 2.8 if is_br1 else 1.6
+            try:
+                # Slightly increase widths for prominent experimental datasets
+                if dname.startswith('LHC') or dname.startswith('MATHUSLA40') or dname.startswith('MATHUSLA') or dname.startswith('ANUBIS'):
+                    if is_br1:
+                        lw = max(lw, 3.4)
+                    else:
+                        lw = max(lw, 2.2)
+            except Exception:
+                pass
             ax.plot(x, y, color=plot_color, lw=lw, linestyle=linestyle, zorder=zord)
             # For BR==1 (solid) keep a legend handle but do NOT append
             # any branching-ratio suffix; for BR<1 do not place inline labels.
@@ -550,7 +563,7 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
     except Exception:
         print('Warning: failed to set colormap bad color')
 
-    fig, ax = plt.subplots(figsize=(8, 12))
+    fig, ax = plt.subplots(figsize=(9, 8))
 
     if use_log_scale and vmax > 0:
         vmin_safe = max(vmin, np.finfo(float).tiny)
@@ -852,11 +865,8 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
                 # Add the solid line for the contour border
                 legend_handles.append(Line2D([0], [0], color='red', lw=3.0, label=f'{lvl:g} events (highlight)'))
 
-        if legend_handles:
-            # Draw the legend and place it in the bottom left
-            legend = ax.legend(handles=legend_handles, loc='lower left', title='Contour Levels', 
-                               framealpha=0.9, edgecolor='grey', prop={'size':14}, title_fontsize=14)
-            legend.set_zorder(100) # Keep the legend above the scatter plot
+        # Do not draw an on-plot legend here; experimental limits are shown
+        # using the right-side patch legend created below.
 
         # ---------------------------------------------------------
         # Overlay experimental contour polylines (LHC, MATHUSLA, ANUBIS)
@@ -891,15 +901,78 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
                 except Exception:
                     pass
 
-                if 'legend' in locals():
-                    # extend existing legend handles list by creating a new legend merging both
-                    all_handles = legend_handles + exp_handles
-                    legend = ax.legend(handles=all_handles, loc='lower left', title='Contour Levels / Limits', 
-                                       framealpha=0.9, edgecolor='grey', prop={'size':14}, title_fontsize=14)
-                    legend.set_zorder(100)
-                else:
-                    legend = ax.legend(handles=exp_handles, loc='lower left', title='Limits', framealpha=0.9, edgecolor='grey', prop={'size':14}, title_fontsize=14)
-                    legend.set_zorder(100)
+                # Combine dataset legend handles and experimental handles into a
+                # right-side patch legend (ensures ANUBIS appears) and make boxes squarer.
+                combined = {}
+                try:
+                    # prefer colors from exp_handles (limits), then dataset legend_handles
+                    for h in exp_handles:
+                        try:
+                            lab = h.get_label()
+                            try:
+                                col = h.get_color()
+                            except Exception:
+                                try:
+                                    col = h.get_edgecolor()
+                                except Exception:
+                                    col = 'grey'
+                            if lab and lab not in combined:
+                                combined[lab] = col
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+                try:
+                    for h in (legend_handles if 'legend_handles' in locals() else []):
+                        try:
+                            lab = h.get_label()
+                            try:
+                                col = h.get_color()
+                            except Exception:
+                                try:
+                                    col = h.get_edgecolor()
+                                except Exception:
+                                    col = 'grey'
+                            if lab and lab not in combined:
+                                combined[lab] = col
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+
+                # Order ANUBIS first (if present), then others — build patches in that order
+                try:
+                    anubis_keys = [k for k in combined.keys() if 'ANUBIS' in k.upper()]
+                    other_keys = [k for k in combined.keys() if k not in anubis_keys]
+                    ordered_keys = anubis_keys + other_keys
+                except Exception:
+                    ordered_keys = list(combined.keys())
+
+                exp_patches = [mpatches.Patch(facecolor=combined[k], edgecolor='none', label=k) for k in ordered_keys]
+
+                # Keep existing inner legend if present
+                legend_obj = locals().get('legend', None)
+                if legend_obj is not None:
+                    try:
+                        ax.add_artist(legend_obj)
+                    except Exception:
+                        pass
+
+                # Place the experiment legend to the top-right outside the axes with larger font and bigger boxes; no title
+                try:
+                    if exp_patches:
+                        exp_legend = ax.legend(handles=exp_patches, loc='upper left', bbox_to_anchor=(1.02, 1.0), 
+                                               framealpha=0.9, edgecolor='grey', prop={'size':18},
+                                               handlelength=2.8, handleheight=1.6, labelspacing=0.6)
+                        exp_legend.set_zorder(100)
+                except Exception:
+                    try:
+                        if exp_patches:
+                            exp_legend = ax.legend(handles=exp_patches, loc='lower left', framealpha=0.9, edgecolor='grey', prop={'size':18},
+                                                   handlelength=2.8, handleheight=1.6, labelspacing=0.6)
+                            exp_legend.set_zorder(100)
+                    except Exception:
+                        pass
         except Exception:
             pass
 
@@ -915,14 +988,15 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
         ax.set_ylim(1e-7, 100.0)
     except Exception:
         pass
-    ax.set_xlabel('Effective $C_{Zh}$', fontsize=16)
-    ax.set_ylabel(r'Coupling $C_{a\Phi}$', fontsize=16)
+    ax.set_xlabel(r'Higgs Effective Coupling $C_{Zh}^\text{eff}$', fontsize=20)
+    ax.set_ylabel(r'Fermion Coupling $C_{a\Phi}$', fontsize=20)
     if title is None:
-        title = 'Sensitivity Contours: Expected Signal Events'
-    ax.set_title(title, fontsize=18)
+        title = ''
+    if title:
+        ax.set_title(title, fontsize=18)
     # Use default Matplotlib tick locators; only adjust label sizes.
-    ax.tick_params(axis='both', which='major', labelsize=14)
-    ax.tick_params(axis='both', which='minor', labelsize=12)
+    ax.tick_params(axis='both', which='major', labelsize=16)
+    ax.tick_params(axis='both', which='minor', labelsize=14)
     ax.minorticks_on()
     try:
         # High numticks ensures Matplotlib won't drop ticks due to internal limits
@@ -973,6 +1047,8 @@ def plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
 
     plt.tight_layout()
 
+    # ANUBIS logo insertion removed (handle in post-production)
+
     out_path = Path(output_path)
     os.makedirs(out_path.parent or '.', exist_ok=True)
     # Save PNG (raster) and PDF (vector) for publication
@@ -1019,7 +1095,7 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
     eval_pts = np.column_stack((LOGGX.ravel(), LOGGY.ravel()))
     GX, GY = np.meshgrid(10.0 ** LOGX, 10.0 ** LOGY)
 
-    fig, ax = plt.subplots(figsize=(8, 12))
+    fig, ax = plt.subplots(figsize=(9, 8))
     # Removed plotting of discrete grid markers in overlay mode; only contours are drawn.
 
     # Use log scales and set y-limits early so experiment fills reach the top
@@ -1482,16 +1558,33 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
             levels_non4 = [lv for lv in levels if not np.isclose(lv, 4.0)]
             has_4 = any(np.isclose(levels, 4.0))
 
+            # choose thicker linewidths for LHC / MATHUSLA overlays for visibility
+            try:
+                gcheck = (str(grp_display).upper() if grp_display is not None else (str(grp).upper() if grp is not None else ''))
+            except Exception:
+                gcheck = (str(grp).upper() if grp is not None else '')
+            # Use default contour linewidths, but slightly increase for major experiments
+            lw_contour = 1.8
+            lw_contour4 = 3.2
+            lw_legend = 2.4
+            try:
+                if gcheck.startswith('LHC') or gcheck.startswith('MATHUSLA40') or gcheck.startswith('MATHUSLA') or gcheck.startswith('ANUBIS'):
+                    lw_contour = 2.6
+                    lw_contour4 = 4.0
+                    lw_legend = 2.6
+            except Exception:
+                pass
+
             cs = None
             if len(levels_non4) > 0:
-                cs = ax.contour(GX, GY, GZ, levels=levels_non4, colors=[color], linewidths=1.8, linestyles=linestyle, zorder=z_cs)
+                cs = ax.contour(GX, GY, GZ, levels=levels_non4, colors=[color], linewidths=lw_contour, linestyles=linestyle, zorder=z_cs)
 
             # highlight the 4.0 level if present (single thicker line)
             cs4 = None
             if has_4:
                 try:
-                    cs4 = ax.contour(GX, GY, GZ, levels=[4.0], colors=[color], linewidths=3.2, linestyles=linestyle, zorder=z_cs4)
-                    
+                    cs4 = ax.contour(GX, GY, GZ, levels=[4.0], colors=[color], linewidths=lw_contour4, linestyles=linestyle, zorder=z_cs4)
+
                     # --- NEW: Accumulate the mask to fill the main dataset contours ---
                     mask = np.isfinite(GZ) & (GZ >= 4.0)
                     if np.any(mask):
@@ -1507,9 +1600,9 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
                 except Exception:
                     cs4 = None
 
-            # Do not place branching-ratio inline labels here; labels will
-            # be added in post-production if needed. The contours are drawn
-            # above and legend entries will indicate dataset groups only.
+        # Do not place branching-ratio inline labels here; labels will
+        # be added in post-production if needed. The contours are drawn
+        # above and legend entries will indicate dataset groups only.
         except Exception as e:
             print(f'Warning: failed to draw contours for {d["path"]}: {e}')
             continue
@@ -1518,7 +1611,14 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
         # Do NOT add ANUBIS BR<1 entries to the legend; label them inline on-plot instead
         try:
             if not (isinstance(grp_display, str) and grp_display.upper() == 'ANUBIS' and br_val is not None and float(br_val) < 1.0):
-                legend_handles.append(Line2D([0], [0], color=color, lw=2.4, linestyle=linestyle, label=legend_label))
+                try:
+                    legend_handles.append(Line2D([0], [0], color=color, lw=lw_legend, linestyle=linestyle, label=legend_label))
+                except Exception:
+                    # fallback to the prior default if lw_legend isn't available or append fails
+                    try:
+                        legend_handles.append(Line2D([0], [0], color=color, lw=2.4, linestyle=linestyle, label=legend_label))
+                    except Exception:
+                        pass
             else:
                 # Ensure inline labels exist for ANUBIS BR<1 (they are drawn above when cs/cs4 exist)
                 pass
@@ -1536,10 +1636,8 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
         except Exception as e:
             print(f"Warning: failed to draw filled contour for group {grp_fill}: {e}")
 
-    # draw legend (no unified colorbar — contours convey the 4-event boundary per BR)
-    if legend_handles:
-        legend = ax.legend(handles=legend_handles, loc='lower left', title='Datasets (BR)', framealpha=0.9, edgecolor='grey', prop={'size':14}, title_fontsize=14)
-        legend.set_zorder(100)
+    # Do not draw an on-plot datasets legend; limits and datasets are summarized
+    # in the right-side patch legend to avoid obscuring the figure.
 
     # ---------------------------------------------------------
     # Overlay experimental contour polylines (LHC, MATHUSLA, ANUBIS)
@@ -1573,13 +1671,75 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
             except Exception:
                 pass
 
-            # merge with any existing legend
-            if 'legend' in locals():
-                all_handles = legend_handles + exp_handles
-                legend = ax.legend(handles=all_handles, loc='lower left', title='Datasets / Limits', framealpha=0.9, edgecolor='grey', prop={'size':14}, title_fontsize=14)
-            else:
-                legend = ax.legend(handles=exp_handles, loc='lower left', title='Limits', framealpha=0.9, edgecolor='grey', prop={'size':14}, title_fontsize=14)
-            legend.set_zorder(100)
+            # Combine dataset legend handles and experimental handles into a
+            # right-side patch legend (ensures ANUBIS appears) and make boxes squarer.
+            combined = {}
+            try:
+                for h in exp_handles:
+                    try:
+                        lab = h.get_label()
+                        try:
+                            col = h.get_color()
+                        except Exception:
+                            try:
+                                col = h.get_edgecolor()
+                            except Exception:
+                                col = 'grey'
+                        if lab and lab not in combined:
+                            combined[lab] = col
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            try:
+                for h in (legend_handles if 'legend_handles' in locals() else []):
+                    try:
+                        lab = h.get_label()
+                        try:
+                            col = h.get_color()
+                        except Exception:
+                            try:
+                                col = h.get_edgecolor()
+                            except Exception:
+                                col = 'grey'
+                        if lab and lab not in combined:
+                            combined[lab] = col
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+
+            # Order ANUBIS first (if present), then others
+            try:
+                anubis_keys = [k for k in combined.keys() if 'ANUBIS' in k.upper()]
+                other_keys = [k for k in combined.keys() if k not in anubis_keys]
+                ordered_keys = anubis_keys + other_keys
+            except Exception:
+                ordered_keys = list(combined.keys())
+
+            exp_patches = [mpatches.Patch(facecolor=combined[k], edgecolor='none', label=k) for k in ordered_keys]
+
+            # If the datasets legend exists, keep it, then add the patches legend outside
+            legend_obj = locals().get('legend', None)
+            if legend_obj is not None:
+                try:
+                    ax.add_artist(legend_obj)
+                except Exception:
+                    pass
+
+            try:
+                if exp_patches:
+                    exp_legend = ax.legend(handles=exp_patches, loc='upper left', bbox_to_anchor=(1.02, 1.0), framealpha=0.9, edgecolor='grey', prop={'size':18},
+                                           handlelength=2.8, handleheight=1.6, labelspacing=0.6)
+                    exp_legend.set_zorder(100)
+            except Exception:
+                try:
+                    if exp_patches:
+                        exp_legend = ax.legend(handles=exp_patches, loc='lower left', framealpha=0.9, edgecolor='grey', prop={'size':18},
+                                               handlelength=2.8, handleheight=1.6, labelspacing=0.6)
+                        exp_legend.set_zorder(100)
+                except Exception:
+                    pass
     except Exception as e:
         print(f'Warning: overlaying experimental contour handles failed: {e}')
 
@@ -1593,14 +1753,15 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
         ax.set_ylim(1e-7, 100.0)
     except Exception:
         pass
-    ax.set_xlabel('Effective $C_{Zh}$', fontsize=16)
-    ax.set_ylabel(r'Coupling $C_{a\Phi}$', fontsize=16)
+    ax.set_xlabel(r'Higgs Effective Coupling $C_{Zh}^\text{eff}$', fontsize=20)
+    ax.set_ylabel(r'Fermion Coupling $C_{a\Phi}$', fontsize=20)
     if title is None:
-        title = 'Sensitivity Contours (overlaid BR scans)'
-    ax.set_title(title, fontsize=18)
+        title = ''
+    if title:
+        ax.set_title(title, fontsize=18)
     # Use default Matplotlib tick locators; only adjust label sizes.
-    ax.tick_params(axis='both', which='major', labelsize=14)
-    ax.tick_params(axis='both', which='minor', labelsize=12)
+    ax.tick_params(axis='both', which='major', labelsize=16)
+    ax.tick_params(axis='both', which='minor', labelsize=14)
     ax.minorticks_on()
     try:
         # High numticks ensures Matplotlib won't drop ticks due to internal limits
@@ -1650,6 +1811,8 @@ def plot_sensitivity_contours_overlay(csv_paths, levels, output_path,
     ax.tick_params(axis='both', which='both', zorder=10000)
 
     plt.tight_layout()
+
+    # ANUBIS logo insertion removed (handle in post-production)
 
     out_path = Path(output_path)
     os.makedirs(out_path.parent or '.', exist_ok=True)
@@ -1728,8 +1891,8 @@ def main():
         title = title_base + czh_text + ' — includes MATHUSLA & LHC limits'
         # Draw only the 4-event overlay level for comparison
         levels_overlay = [4.0]
-        plot_sensitivity_contours_overlay(csv_list, levels_overlay, output_path, title=title,
-                                          use_log_scale=use_log, smooth_sigma=sigma, apply_br_envelope=apply_envelope)
+        plot_sensitivity_contours_overlay(csv_list, levels_overlay, output_path, title=None,
+                          use_log_scale=use_log, smooth_sigma=sigma, apply_br_envelope=apply_envelope)
     else:
         mass_vals, caphi_vals, heat = prepare_grid_from_csv(csv_list[0], 'N_signal')
         print(f'Loaded {len(mass_vals)} C_Zh points × {len(caphi_vals)} coupling points from {csv_list[0]}')
@@ -1760,7 +1923,7 @@ def main():
         title = title_base + czh_text + ' — includes MATHUSLA & LHC limits'
 
         plot_sensitivity_contours(mass_vals, caphi_vals, heat, levels, output_path,
-              title=title,
+              title=None,
               use_log_scale=use_log, smooth_sigma=sigma)
 
 
